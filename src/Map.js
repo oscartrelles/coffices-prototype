@@ -1,11 +1,5 @@
-import { useState, useCallback, useRef, memo, useEffect } from 'react';
-import { createRoot } from 'react-dom/client';
-import { 
-  GoogleMap, 
-  useLoadScript,
-  Marker,
-  InfoWindow 
-} from '@react-google-maps/api';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { GoogleMap, useLoadScript, Marker } from '@react-google-maps/api';
 import RatingForm from './RatingForm';
 import EmailSignInForm from './components/auth/EmailSignInForm';
 import { 
@@ -19,7 +13,6 @@ import {
 } from 'firebase/auth';
 import SearchBar from "./SearchBar";
 import CircularProgress from "@mui/material/CircularProgress";
-import Snackbar from "@mui/material/Snackbar";
 import Modal from './components/Modal';
 import { 
   doc, 
@@ -28,7 +21,6 @@ import {
   collection,
   addDoc,
   serverTimestamp,
-  updateDoc,
   arrayUnion,
   runTransaction,
   getDocs,
@@ -37,6 +29,8 @@ import {
   limit
 } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
+import { signInWithGoogle } from './firebaseConfig';
+import { createRoot } from 'react-dom/client';
 
 // Create providers
 const googleProvider = new GoogleAuthProvider();
@@ -59,9 +53,6 @@ const Map = () => {
     libraries,
   });
 
-  const [currentLocation, setCurrentLocation] = useState(null);
-  const [mapRef, setMapRef] = useState(null);
-  const [isMapCentered, setIsMapCentered] = useState(false);
   const [mapCenter, setMapCenter] = useState(defaultCenter);
   const [coffeeShops, setCoffeeShops] = useState([]);
   const [selectedShop, setSelectedShop] = useState(null);
@@ -71,7 +62,6 @@ const Map = () => {
   const [infoWindowPosition, setInfoWindowPosition] = useState(null);
   const [isInfoWindowReady, setIsInfoWindowReady] = useState(false);
   const infoWindowRef = useRef(null);
-  const rootRef = useRef(null);
   const markersRef = useRef([]);
   const mapInstanceRef = useRef(null);
   const [error, setError] = useState(null);
@@ -79,12 +69,11 @@ const Map = () => {
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
   const [userName, setUserName] = useState(null);
+  const [isMapCentered, setIsMapCentered] = useState(false);
 
   const mapOptions = {
     mapId: process.env.REACT_APP_GOOGLE_MAPS_MAP_ID,
   };
-
-  const handleCloseSnackbar = () => setSnackbar({ open: false, message: "" });
 
   // Observe user authentication status
   useEffect(() => {
@@ -258,19 +247,6 @@ const Map = () => {
     }
   };
 
-  const handleRateClick = useCallback((shop) => {
-    console.log('Rate click - Current user:', user);
-    if (!user) {
-      console.log('No user, showing auth form');
-      setShowAuthForm(true);
-    } else {
-      console.log('User exists, showing rating form');
-      setShowRatingForm(true);
-    }
-  }, [user]);
-
-  console.log('showAuthForm:', showAuthForm);
-
   const handleMarkerClick = useCallback(async (shop) => {
     console.log('Original shop data:', shop);
     
@@ -318,12 +294,6 @@ const Map = () => {
     console.log('Final shop data being set:', transformedShop);
     setSelectedShop(transformedShop);
   }, [user]);
-
-  const handleInfoWindowClose = useCallback(() => {
-    console.log('Closing InfoWindow'); // Debug log
-    setSelectedShop(null);
-    setShowRatingForm(false);
-  }, []);
 
   const onMapLoad = useCallback((map) => {
     console.log('Map loaded');
@@ -374,7 +344,7 @@ const Map = () => {
         console.error('Places search failed:', status);
       }
     });
-  }, [mapCenter, isMapCentered]);
+  }, [mapCenter]);
 
   useEffect(() => {
     console.log('Markers effect running', {
@@ -393,14 +363,14 @@ const Map = () => {
 
     // Create new markers
     coffeeShops.forEach(shop => {
-      console.log('Creating marker for shop:', shop.name);
+      //console.log('Creating marker for shop:', shop.name);
       
       const position = {
         lat: shop.geometry.location.lat(),
         lng: shop.geometry.location.lng()
       };
       
-      console.log('Marker position:', position);
+      //console.log('Marker position:', position);
 
       const marker = new window.google.maps.Marker({
         position,
@@ -420,16 +390,8 @@ const Map = () => {
 
   // Add an effect to log when coffee shops change
   useEffect(() => {
-    console.log('Coffee shops updated:', coffeeShops);
+    //console.log('Coffee shops updated:', coffeeShops);
   }, [coffeeShops]);
-
-  const handleSignIn = async (provider) => {
-    try {
-      await signInWithRedirect(auth, provider);
-    } catch (error) {
-      console.error("Error during sign-in: ", error);
-    }
-  };
 
   const handleEmailSignIn = async (email, password) => {
     try {
@@ -459,19 +421,6 @@ const Map = () => {
     }
   };
 
-  // 4 & 5. Handle SearchBar location changes
-  const handlePlaceSelect = useCallback((place) => {
-    if (!place.geometry) return;
-
-    const newLocation = {
-      lat: place.geometry.location.lat(),
-      lng: place.geometry.location.lng(),
-    };
-
-    setMapCenter(newLocation);
-    mapInstanceRef.current?.panTo(newLocation);
-  }, [mapInstanceRef]);
-
   // Auth state listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -481,10 +430,6 @@ const Map = () => {
   }, []);
 
   // Auth handlers
-  const handleEmailButtonClick = () => {
-    setShowAuthForm(true);
-  };
-
   const handleGoogleSignIn = async () => {
     try {
       await signInWithRedirect(auth, googleProvider);
@@ -564,287 +509,123 @@ const Map = () => {
     }
   }, []);
 
-  // Calculate distance between two points
-  const calculateDistance = (lat1, lng1, lat2, lng2) => {
-    const R = 6371; // Earth's radius in kilometers
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLng/2) * Math.sin(dLng/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return (R * c).toFixed(1); // Return distance with one decimal place
-  };
-
   useEffect(() => {
     if (selectedShop && mapInstanceRef.current && infoWindowRef.current) {
-      // Calculate distance if user location is available
-      const distance = userLocation ? 
-        calculateDistance(
+      const calculateDistance = (lat1, lon1, lat2, lon2) => {
+        const R = 6371;
+        const dLat = deg2rad(lat2 - lat1);
+        const dLon = deg2rad(lon2 - lon1);
+        const a = 
+          Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+          Math.sin(dLon/2) * Math.sin(dLon/2); 
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+        const d = R * c;
+        return d.toFixed(1);
+      };
+
+      const deg2rad = (deg) => {
+        return deg * (Math.PI/180);
+      };
+
+      let distanceText = '';
+      if (userLocation && selectedShop.lat && selectedShop.lng) {
+        const distance = calculateDistance(
           userLocation.lat,
           userLocation.lng,
           selectedShop.lat,
           selectedShop.lng
-        ) : null;
-
-      const content = showRatingForm 
-        ? `
-          <div style="padding: 12px; min-width: 300px;">
-            ${error ? `
-              <div style="
-                padding: 8px;
-                margin-bottom: 12px;
-                background-color: #fee;
-                color: #c00;
-                border-radius: 4px;
-              ">
-                ${error}
-              </div>
-            ` : ''}
-            ${successMessage ? `
-              <div style="
-                padding: 8px;
-                margin-bottom: 12px;
-                background-color: #efe;
-                color: #0c0;
-                border-radius: 4px;
-              ">
-                ${successMessage}
-              </div>
-            ` : ''}
-            <h3 style="margin: 0 0 12px 0; font-size: 16px;">Rate ${selectedShop.name}</h3>
-            <div class="rating-categories">
-              <div class="rating-category">
-                <label>Wifi Quality:</label>
-                <div class="star-rating" data-category="wifi">
-                  ${[1, 2, 3, 4, 5].map(star => `
-                    <span class="star" data-value="${star}">★</span>
-                  `).join('')}
-                </div>
-              </div>
-              <div class="rating-category">
-                <label>Power Outlets:</label>
-                <div class="star-rating" data-category="power">
-                  ${[1, 2, 3, 4, 5].map(star => `
-                    <span class="star" data-value="${star}">★</span>
-                  `).join('')}
-                </div>
-              </div>
-              <div class="rating-category">
-                <label>Noise Level:</label>
-                <div class="star-rating" data-category="noise">
-                  ${[1, 2, 3, 4, 5].map(star => `
-                    <span class="star" data-value="${star}">★</span>
-                  `).join('')}
-                </div>
-              </div>
-              <div class="rating-category">
-                <label>Coffee Quality:</label>
-                <div class="star-rating" data-category="coffee">
-                  ${[1, 2, 3, 4, 5].map(star => `
-                    <span class="star" data-value="${star}">★</span>
-                  `).join('')}
-                </div>
-              </div>
-            </div>
-            <div style="margin-top: 12px;">
-              <label style="display: block; margin-bottom: 4px; color: #666;">Comments:</label>
-              <textarea 
-                id="ratingComment"
-                style="
-                  width: 100%;
-                  min-height: 60px;
-                  padding: 8px;
-                  border: 1px solid #ddd;
-                  border-radius: 4px;
-                  margin-bottom: 12px;
-                  resize: vertical;
-                "
-                placeholder="Share your experience working from here..."
-              ></textarea>
-            </div>
-            <div style="display: flex; gap: 8px;">
-              <button 
-                id="submitRating"
-                style="
-                  flex: 1;
-                  padding: 8px 16px;
-                  background-color: #4285f4;
-                  color: white;
-                  border: none;
-                  border-radius: 4px;
-                  cursor: pointer;
-                "
-              >
-                Submit
-              </button>
-              <button 
-                id="cancelRating"
-                style="
-                  flex: 1;
-                  padding: 8px 16px;
-                  background-color: #f5f5f5;
-                  color: #333;
-                  border: 1px solid #ddd;
-                  border-radius: 4px;
-                  cursor: pointer;
-                "
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-          <style>
-            .rating-category {
-              margin-bottom: 12px;
-            }
-            .rating-category label {
-              display: block;
-              margin-bottom: 4px;
-              color: #666;
-            }
-            .star-rating {
-              display: flex;
-              gap: 4px;
-            }
-            .star {
-              cursor: pointer;
-              color: #ccc;
-              font-size: 20px;
-            }
-            .star.active {
-              color: #ffd700;
-            }
-          </style>
-        `
-        : `
-          <div style="padding: 12px; min-width: 250px;">
-            <h3 style="margin: 0 0 8px 0; font-size: 16px;">${selectedShop.name}</h3>
-            <p style="margin: 0 0 8px 0; color: #666;">${selectedShop.formatted_address}</p>
-            ${distance ? `
-              <p style="margin: 0 0 8px 0; color: #666;">
-                <span style="color: #4285f4;">📍</span> ${distance}km away
-              </p>
-            ` : ''}
-            ${selectedShop.averages ? `
-              <div style="margin: 8px 0; padding: 8px; background: #f5f5f5; border-radius: 4px;">
-                <p style="margin: 0 0 4px 0; font-weight: bold;">Community Ratings:</p>
-                <p style="margin: 0;">⚡ Wifi: ${selectedShop.averages.wifi.toFixed(1)}/5</p>
-                <p style="margin: 0;">🔌 Power: ${selectedShop.averages.power.toFixed(1)}/5</p>
-                <p style="margin: 0;">🔊 Noise: ${selectedShop.averages.noise.toFixed(1)}/5</p>
-                <p style="margin: 0;">☕ Coffee: ${selectedShop.averages.coffee.toFixed(1)}/5</p>
-              </div>
-            ` : selectedShop.rating ? `
-              <div style="margin: 8px 0; padding: 8px; background: #f5f5f5; border-radius: 4px;">
-                <p style="margin: 0;">
-                  <span style="color: #fbbc04;">★</span> 
-                  Google Rating: ${selectedShop.rating}/5
-                </p>
-              </div>
-            ` : `
-              <p style="margin: 8px 0; color: #666;">No ratings yet</p>
-            `}
-            ${user && !selectedShop.userHasRated ? `
-              <button 
-                id="rateButton"
-                style="
-                  padding: 8px 16px;
-                  background-color: #4285f4;
-                  color: white;
-                  border: none;
-                  border-radius: 4px;
-                  cursor: pointer;
-                  width: 100%;
-                  margin-top: 8px;
-                "
-              >
-                Rate Coffice
-              </button>
-            ` : user && selectedShop.userHasRated ? `
-              <p style="
-                margin: 8px 0;
-                padding: 8px;
-                background: #f5f5f5;
-                border-radius: 4px;
-                color: #666;
-                text-align: center;
-              ">
-                You've already rated this coffice
-              </p>
-            ` : ''}
-          </div>
+        );
+        distanceText = `
+          <p style="margin: 4px 0; color: #666;">
+            <span style="color: #4285f4;">📍</span> ${distance}km away
+          </p>
         `;
+      }
 
-      // Set content and position
+      const content = showRatingForm ? `
+        <div style="padding: 12px; min-width: 300px;">
+          <div id="ratingFormContainer">
+            <!-- Rating form will be rendered here -->
+          </div>
+        </div>
+      ` : `
+        <div style="padding: 12px; min-width: 300px;">
+          <h3 style="margin: 0 0 8px 0;">${selectedShop.name}</h3>
+          <p style="margin: 0 0 8px 0; color: #666;">
+            ${selectedShop.formatted_address || selectedShop.vicinity || 'No address available'}
+          </p>
+          ${distanceText}
+          ${selectedShop.averages ? `
+            <div style="margin: 8px 0; padding: 8px; background: #f5f5f5; border-radius: 4px;">
+              <p style="margin: 0;">⚡ Wifi: ${selectedShop.averages.wifi.toFixed(1)}/5</p>
+              <p style="margin: 0;">🔌 Power: ${selectedShop.averages.power.toFixed(1)}/5</p>
+              <p style="margin: 0;">🔊 Noise: ${selectedShop.averages.noise.toFixed(1)}/5</p>
+              <p style="margin: 0;">☕ Coffee: ${selectedShop.averages.coffee.toFixed(1)}/5</p>
+            </div>
+          ` : ''}
+          <button 
+            id="actionButton"
+            style="
+              width: 100%;
+              padding: 8px 16px;
+              background-color: #4285f4;
+              color: white;
+              border: none;
+              border-radius: 4px;
+              cursor: pointer;
+              margin-top: 8px;
+            "
+          >
+            ${user ? 'Rate Coffice' : 'Sign in to Rate'}
+          </button>
+        </div>
+      `;
+
       infoWindowRef.current.setContent(content);
       infoWindowRef.current.setPosition({
         lat: selectedShop.lat,
         lng: selectedShop.lng
       });
 
-      // Open InfoWindow
-      infoWindowRef.current.open(mapInstanceRef.current);
-
-      // Add event listeners after InfoWindow is opened
       window.google.maps.event.addListenerOnce(infoWindowRef.current, 'domready', () => {
-        if (!showRatingForm) {
-          const rateButton = document.getElementById('rateButton');
-          if (rateButton) {
-            rateButton.addEventListener('click', () => {
-              handleRateClick(selectedShop);
+        if (showRatingForm) {
+          // Render rating form
+          const container = document.getElementById('ratingFormContainer');
+          if (container) {
+            const root = createRoot(container);
+            root.render(
+              <RatingForm 
+                onSubmit={handleRatingSubmit}
+                onCancel={() => setShowRatingForm(false)}
+              />
+            );
+          }
+        } else {
+          const actionButton = document.getElementById('actionButton');
+          if (actionButton) {
+            actionButton.addEventListener('click', () => {
+              if (user) {
+                setShowRatingForm(true);
+              } else {
+                setShowAuthForm(true);
+              }
             });
           }
         }
-        if (showRatingForm) {
-          const ratings = {
-            wifi: 0,
-            power: 0,
-            noise: 0,
-            coffee: 0,
-            comment: ''
-          };
-
-          // Add star rating listeners
-          document.querySelectorAll('.star').forEach(star => {
-            star.addEventListener('click', () => {
-              const value = parseInt(star.dataset.value);
-              const category = star.parentElement.dataset.category;
-              ratings[category] = value;
-
-              // Update stars visual state
-              const stars = star.parentElement.querySelectorAll('.star');
-              stars.forEach(s => {
-                s.classList.toggle('active', parseInt(s.dataset.value) <= value);
-              });
-            });
-          });
-
-          // Add submit button listener
-          document.getElementById('submitRating').addEventListener('click', () => {
-            ratings.comment = document.getElementById('ratingComment').value;
-            handleRatingSubmit(ratings);
-            setShowRatingForm(false);
-          });
-
-          // Add cancel button listener
-          document.getElementById('cancelRating').addEventListener('click', () => {
-            setShowRatingForm(false);
-          });
-        }
       });
+
+      infoWindowRef.current.open(mapInstanceRef.current);
     } else if (infoWindowRef.current) {
-      // Close InfoWindow when no shop is selected
       infoWindowRef.current.close();
     }
 
-    // Cleanup
     return () => {
       if (infoWindowRef.current) {
         infoWindowRef.current.close();
       }
     };
-  }, [selectedShop, showRatingForm, user, error, successMessage, userLocation]);
+  }, [selectedShop, showRatingForm, user, error, successMessage, userLocation, setShowAuthForm, setShowRatingForm, handleRatingSubmit]);
 
   if (loadError) return <div>Error loading maps</div>;
   if (!isLoaded) return <CircularProgress />;
@@ -884,6 +665,18 @@ const Map = () => {
           </div>
         )}
         <SearchBar onPlaceSelected={handlePlaceSelected} />
+        <button
+          onClick={signInWithGoogle}
+          style={{
+            padding: "8px 16px",
+            backgroundColor: "red",
+            color: "white",
+            border: "none",
+            cursor: "pointer"
+          }}
+        >
+          DEBUG SIGN IN
+        </button>
       </div>
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
@@ -893,7 +686,7 @@ const Map = () => {
         options={mapOptions}
       >
         {coffeeShops.map((shop) => {
-          console.log('Rendering marker for shop:', shop); // Debug log
+          //console.log('Rendering marker for shop:', shop); // Debug log
           const position = shop.geometry ? {
             lat: shop.geometry.location.lat(),
             lng: shop.geometry.location.lng()
