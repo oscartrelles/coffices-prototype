@@ -362,7 +362,8 @@ const Map = () => {
     const request = {
       location: mapCenter,
       radius: '500',
-      type: ['coffee_shop']
+      keyword: 'coffee shop wifi laptop',
+      type: ['cafe']
     };
 
     service.nearbySearch(request, (results, status) => {

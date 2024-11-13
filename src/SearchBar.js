@@ -3,7 +3,7 @@ import usePlacesAutocomplete, { getGeocode, getLatLng } from "use-places-autocom
 import { Combobox, ComboboxInput, ComboboxPopover, ComboboxList, ComboboxOption } from "@reach/combobox";
 import "@reach/combobox/styles.css";
 
-const SearchBar = ({ onPlaceSelect }) => {
+const SearchBar = ({ onPlaceSelected }) => {
   const {
     ready,
     value,
@@ -31,7 +31,7 @@ const SearchBar = ({ onPlaceSelect }) => {
         },
         (place, status) => {
           if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-            onPlaceSelect(place);
+            onPlaceSelected(place);
           }
         }
       );
