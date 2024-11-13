@@ -112,138 +112,44 @@ const Map = () => {
   }, [showAuthForm]);
 
   const handleRatingSubmit = async (ratings) => {
-    console.log('Validating rating submission...', ratings);
-
-    // Validate all ratings are provided
-    const missingRatings = Object.entries(ratings)
-      .filter(([key, value]) => key !== 'comment' && value === 0)
-      .map(([key]) => key);
-
-    if (missingRatings.length > 0) {
-      setError(`Please provide ratings for: ${missingRatings.join(', ')}`);
-      return;
-    }
-
     try {
-      console.log('Starting rating submission...', { ratings, user, selectedShop });
-      
-      if (!user) {
-        console.error('No user logged in');
-        setError('Please log in to submit a rating');
+      // Check again before submitting
+      const hasRated = await checkExistingRating(selectedShop.place_id || selectedShop.id, user.uid);
+      if (hasRated) {
+        setError('You have already rated this coffice');
+        setShowRatingForm(false);
         return;
       }
 
-      if (!selectedShop) {
-        console.error('No shop selected');
-        setError('No shop selected for rating');
-        return;
-      }
-
-      // First, create the rating document
+      // Prepare the rating data
       const ratingData = {
+        ...ratings,
         userId: user.uid,
-        userName: userName,
-        shopId: selectedShop.id,
+        shopId: selectedShop.place_id || selectedShop.id,
         shopName: selectedShop.name,
-        wifi: ratings.wifi,
-        power: ratings.power,
-        noise: ratings.noise,
-        coffee: ratings.coffee,
-        comment: ratings.comment,
-        createdAt: serverTimestamp()
+        timestamp: serverTimestamp(),
+        userEmail: user.email
       };
 
-      console.log('Creating rating document with data:', ratingData);
-
-      // Add to ratings collection
+      // Add the rating to Firestore
       const ratingsRef = collection(db, 'ratings');
-      const newRatingRef = await addDoc(ratingsRef, ratingData);
-      console.log('Rating document created with ID:', newRatingRef.id);
+      await addDoc(ratingsRef, ratingData);
 
-      // Update shop document
-      const shopRef = doc(db, 'shops', selectedShop.id);
-      console.log('Updating shop document:', selectedShop.id);
+      // Update shop averages
+      await updateShopAverages(selectedShop.place_id || selectedShop.id);
 
-      try {
-        await runTransaction(db, async (transaction) => {
-          const shopDoc = await transaction.get(shopRef);
-          
-          if (!shopDoc.exists()) {
-            console.log('Shop document does not exist, creating new one');
-            // Create new shop document
-            const newShopData = {
-              name: selectedShop.name,
-              address: selectedShop.formatted_address,
-              location: {
-                lat: selectedShop.lat,
-                lng: selectedShop.lng
-              },
-              placeId: selectedShop.id,
-              ratings: [newRatingRef.id],
-              averages: {
-                wifi: ratings.wifi,
-                power: ratings.power,
-                noise: ratings.noise,
-                coffee: ratings.coffee
-              },
-              totalRatings: 1,
-              updatedAt: serverTimestamp()
-            };
-            console.log('Creating new shop document with data:', newShopData);
-            transaction.set(shopRef, newShopData);
-          } else {
-            console.log('Shop document exists, updating averages');
-            const shopData = shopDoc.data();
-            const oldAverages = shopData.averages || {
-              wifi: 0, power: 0, noise: 0, coffee: 0
-            };
-            const totalRatings = (shopData.totalRatings || 0) + 1;
-
-            const newAverages = {
-              wifi: (oldAverages.wifi * (totalRatings - 1) + ratings.wifi) / totalRatings,
-              power: (oldAverages.power * (totalRatings - 1) + ratings.power) / totalRatings,
-              noise: (oldAverages.noise * (totalRatings - 1) + ratings.noise) / totalRatings,
-              coffee: (oldAverages.coffee * (totalRatings - 1) + ratings.coffee) / totalRatings
-            };
-
-            console.log('Calculated new averages:', newAverages);
-            transaction.update(shopRef, {
-              ratings: arrayUnion(newRatingRef.id),
-              averages: newAverages,
-              totalRatings: totalRatings,
-              updatedAt: serverTimestamp()
-            });
-          }
-        });
-
-        console.log('Transaction completed successfully');
-
-        // Show success message
-        setError(null);
-        setSuccessMessage('Rating submitted successfully!');
-        setTimeout(() => setSuccessMessage(null), 3000); // Clear after 3 seconds
-
-        setShowRatingForm(false);
-        
-        // Immediately update the selected shop with new ratings
-        const updatedShopDoc = await getDoc(shopRef);
-        if (updatedShopDoc.exists()) {
-          const updatedShopData = updatedShopDoc.data();
-          setSelectedShop(prev => ({
-            ...prev,
-            averages: updatedShopData.averages,
-            userHasRated: true // Add this flag
-          }));
-        }
-
-      } catch (transactionError) {
-        console.error('Transaction failed:', transactionError);
-        throw transactionError;
+      setShowRatingForm(false);
+      setSuccessMessage('Rating submitted successfully!');
+      
+      // Refresh the shop data to show updated ratings
+      if (selectedShop) {
+        const updatedShop = await fetchShopData(selectedShop.place_id || selectedShop.id);
+        setSelectedShop(updatedShop);
       }
 
     } catch (error) {
       console.error('Error submitting rating:', error);
-      setError('Failed to submit rating: ' + error.message);
+      setError('Failed to submit rating. Please try again.');
     }
   };
 
@@ -528,104 +434,192 @@ const Map = () => {
         return deg * (Math.PI/180);
       };
 
-      let distanceText = '';
-      if (userLocation && selectedShop.lat && selectedShop.lng) {
-        const distance = calculateDistance(
-          userLocation.lat,
-          userLocation.lng,
-          selectedShop.lat,
-          selectedShop.lng
-        );
-        distanceText = `
-          <p style="margin: 4px 0; color: #666;">
-            <span style="color: #4285f4;">📍</span> ${distance}km away
-          </p>
-        `;
-      }
-
-      const content = showRatingForm ? `
-        <div style="padding: 12px; min-width: 300px;">
-          <div id="ratingFormContainer">
-            <!-- Rating form will be rendered here -->
-          </div>
-        </div>
-      ` : `
-        <div style="padding: 12px; min-width: 300px;">
-          <h3 style="margin: 0 0 8px 0;">${selectedShop.name}</h3>
-          <p style="margin: 0 0 8px 0; color: #666;">
-            ${selectedShop.formatted_address || selectedShop.vicinity || 'No address available'}
-          </p>
-          ${distanceText}
-          ${selectedShop.averages ? `
-            <div style="margin: 8px 0; padding: 8px; background: #f5f5f5; border-radius: 4px;">
-              <p style="margin: 0;">⚡ Wifi: ${selectedShop.averages.wifi.toFixed(1)}/5</p>
-              <p style="margin: 0;">🔌 Power: ${selectedShop.averages.power.toFixed(1)}/5</p>
-              <p style="margin: 0;">🔊 Noise: ${selectedShop.averages.noise.toFixed(1)}/5</p>
-              <p style="margin: 0;">☕ Coffee: ${selectedShop.averages.coffee.toFixed(1)}/5</p>
-            </div>
-          ` : ''}
-          <button 
-            id="actionButton"
-            style="
-              width: 100%;
-              padding: 8px 16px;
-              background-color: #4285f4;
-              color: white;
-              border: none;
-              border-radius: 4px;
-              cursor: pointer;
-              margin-top: 8px;
-            "
-          >
-            ${user ? 'Rate Coffice' : 'Sign in to Rate'}
-          </button>
-        </div>
-      `;
-
-      infoWindowRef.current.setContent(content);
-      infoWindowRef.current.setPosition({
-        lat: selectedShop.lat,
-        lng: selectedShop.lng
-      });
-
-      window.google.maps.event.addListenerOnce(infoWindowRef.current, 'domready', () => {
-        if (showRatingForm) {
-          // Render rating form
-          const container = document.getElementById('ratingFormContainer');
-          if (container) {
-            const root = createRoot(container);
-            root.render(
-              <RatingForm 
-                onSubmit={handleRatingSubmit}
-                onCancel={() => setShowRatingForm(false)}
-              />
-            );
-          }
-        } else {
-          const actionButton = document.getElementById('actionButton');
-          if (actionButton) {
-            actionButton.addEventListener('click', () => {
-              if (user) {
-                setShowRatingForm(true);
-              } else {
-                setShowAuthForm(true);
-              }
-            });
-          }
+      const renderInfoWindow = async () => {
+        let hasRated = false;
+        if (user) {
+          hasRated = await checkExistingRating(selectedShop.place_id || selectedShop.id, user.uid);
         }
+
+        let distanceText = '';
+        if (userLocation && selectedShop.lat && selectedShop.lng) {
+          const distance = calculateDistance(
+            userLocation.lat,
+            userLocation.lng,
+            selectedShop.lat,
+            selectedShop.lng
+          );
+          distanceText = `
+            <p style="margin: 4px 0; color: #666;">
+              <span style="color: #4285f4;">📍</span> ${distance}km away
+            </p>
+          `;
+        }
+
+        const buttonStyle = hasRated ? 
+          'background-color: #ccc; cursor: not-allowed;' : 
+          'background-color: #4285f4; cursor: pointer;';
+
+        const content = showRatingForm ? `
+          <div style="padding: 12px; min-width: 300px;">
+            <div id="ratingFormContainer"></div>
+          </div>
+        ` : `
+          <div style="padding: 12px; min-width: 300px;">
+            <h3 style="margin: 0 0 8px 0;">${selectedShop.name}</h3>
+            <p style="margin: 0 0 8px 0; color: #666;">
+              ${selectedShop.formatted_address || selectedShop.vicinity || 'No address available'}
+            </p>
+            ${distanceText}
+            ${selectedShop.averages ? `
+              <div style="margin: 8px 0; padding: 8px; background: #f5f5f5; border-radius: 4px;">
+                <p style="margin: 0;">⚡ Wifi: ${selectedShop.averages.wifi.toFixed(1)}/5</p>
+                <p style="margin: 0;">🔌 Power: ${selectedShop.averages.power.toFixed(1)}/5</p>
+                <p style="margin: 0;">🔊 Noise: ${selectedShop.averages.noise.toFixed(1)}/5</p>
+                <p style="margin: 0;">☕ Coffee: ${selectedShop.averages.coffee.toFixed(1)}/5</p>
+              </div>
+            ` : ''}
+            <button 
+              id="actionButton"
+              style="
+                width: 100%;
+                padding: 8px 16px;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                margin-top: 8px;
+                ${buttonStyle}
+              "
+              ${hasRated ? 'disabled' : ''}
+            >
+              ${user ? (hasRated ? 'Already Rated' : 'Rate Coffice') : 'Sign in to Rate'}
+            </button>
+          </div>
+        `;
+
+        infoWindowRef.current.setContent(content);
+        infoWindowRef.current.setPosition({
+          lat: selectedShop.lat,
+          lng: selectedShop.lng
+        });
+
+        window.google.maps.event.addListenerOnce(infoWindowRef.current, 'domready', () => {
+          if (showRatingForm) {
+            const container = document.getElementById('ratingFormContainer');
+            if (container) {
+              const root = createRoot(container);
+              root.render(
+                <RatingForm 
+                  onSubmit={handleRatingSubmit}
+                  onCancel={() => setShowRatingForm(false)}
+                />
+              );
+            }
+          } else {
+            const actionButton = document.getElementById('actionButton');
+            if (actionButton && (!user || !hasRated)) {
+              actionButton.addEventListener('click', () => {
+                if (user) {
+                  setShowRatingForm(true);
+                } else {
+                  setShowAuthForm(true);
+                }
+              });
+            }
+          }
+        });
+
+        infoWindowRef.current.open(mapInstanceRef.current);
+      };
+
+      renderInfoWindow();
+
+      return () => {
+        if (infoWindowRef.current) {
+          infoWindowRef.current.close();
+        }
+      };
+    }
+  }, [selectedShop, showRatingForm, user, error, successMessage, userLocation, setShowAuthForm, setShowRatingForm, handleRatingSubmit]);
+
+  // Add this near your other utility functions
+  const checkExistingRating = async (shopId, userId) => {
+    try {
+      console.log('Checking rating for shop:', shopId, 'user:', userId);
+      const ratingsRef = collection(db, 'ratings');
+      const q = query(
+        ratingsRef,
+        where('shopId', '==', shopId),
+        where('userId', '==', userId),
+        limit(1)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      return !querySnapshot.empty;
+    } catch (error) {
+      console.error('Error checking existing rating:', error);
+      return false;
+    }
+  };
+
+  const updateShopAverages = async (shopId) => {
+    try {
+      const ratingsRef = collection(db, 'ratings');
+      const q = query(ratingsRef, where('shopId', '==', shopId));
+      const querySnapshot = await getDocs(q);
+      
+      let totals = {
+        wifi: 0,
+        power: 0,
+        noise: 0,
+        coffee: 0,
+        count: 0
+      };
+
+      querySnapshot.forEach((doc) => {
+        const rating = doc.data();
+        totals.wifi += rating.wifi;
+        totals.power += rating.power;
+        totals.noise += rating.noise;
+        totals.coffee += rating.coffee;
+        totals.count++;
       });
 
-      infoWindowRef.current.open(mapInstanceRef.current);
-    } else if (infoWindowRef.current) {
-      infoWindowRef.current.close();
-    }
+      const averages = {
+        wifi: totals.count > 0 ? totals.wifi / totals.count : 0,
+        power: totals.count > 0 ? totals.power / totals.count : 0,
+        noise: totals.count > 0 ? totals.noise / totals.count : 0,
+        coffee: totals.count > 0 ? totals.coffee / totals.count : 0,
+        totalRatings: totals.count
+      };
 
-    return () => {
-      if (infoWindowRef.current) {
-        infoWindowRef.current.close();
+      // Update or create shop document with new averages
+      const shopRef = doc(db, 'shops', shopId);
+      await setDoc(shopRef, { averages }, { merge: true });
+
+    } catch (error) {
+      console.error('Error updating shop averages:', error);
+      throw error;
+    }
+  };
+
+  const fetchShopData = async (shopId) => {
+    try {
+      const shopRef = doc(db, 'shops', shopId);
+      const shopDoc = await getDoc(shopRef);
+      
+      if (shopDoc.exists()) {
+        return {
+          ...selectedShop,
+          averages: shopDoc.data().averages
+        };
       }
-    };
-  }, [selectedShop, showRatingForm, user, error, successMessage, userLocation, setShowAuthForm, setShowRatingForm, handleRatingSubmit]);
+      
+      return selectedShop;
+    } catch (error) {
+      console.error('Error fetching shop data:', error);
+      return selectedShop;
+    }
+  };
 
   if (loadError) return <div>Error loading maps</div>;
   if (!isLoaded) return <CircularProgress />;
