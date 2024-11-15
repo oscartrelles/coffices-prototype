@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { GoogleMap, useLoadScript, Marker } from '@react-google-maps/api';
+import { GoogleMap, Marker } from '@react-google-maps/api';
 import RatingForm from './RatingForm';
 import EmailSignInForm from './components/auth/EmailSignInForm';
 import { 
@@ -9,7 +9,8 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   GoogleAuthProvider,
-  FacebookAuthProvider
+  FacebookAuthProvider,
+  getAuth
 } from 'firebase/auth';
 import SearchBar from "./SearchBar";
 import CircularProgress from "@mui/material/CircularProgress";
@@ -28,15 +29,15 @@ import {
   where,
   limit
 } from 'firebase/firestore';
-import { auth, db } from './firebaseConfig';
-import { signInWithGoogle } from './firebaseConfig';
+import { auth, db, signInWithGoogle, checkAuthRedirect } from './firebaseConfig';
 import { createRoot } from 'react-dom/client';
+import { Dialog, DialogTitle, DialogContent, Button, Typography, Box, Divider, TextField } from '@mui/material';
+import debounce from 'lodash/debounce';
 
 // Create providers
 const googleProvider = new GoogleAuthProvider();
 const facebookProvider = new FacebookAuthProvider();
 
-const libraries = ["places"];
 const mapContainerStyle = {
   width: "100vw",
   height: "100vh",
@@ -47,16 +48,56 @@ const defaultCenter = {
 };
 const defaultZoom = 17;
 
-const Map = () => {
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
-    libraries,
-  });
+// Add this SVG component at the top of your file
+const GoogleIcon = () => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 48 48" 
+    width="24px" 
+    height="24px"
+    style={{ marginRight: '10px' }}
+  >
+    <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
+    <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
+    <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z"/>
+    <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
+  </svg>
+);
 
+// Add this Facebook icon component
+const FacebookIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 48 48"
+    width="24px"
+    height="24px"
+    style={{ marginRight: '10px' }}
+  >
+    <path fill="#3F51B5" d="M42,37c0,2.762-2.238,5-5,5H11c-2.761,0-5-2.238-5-5V11c0-2.762,2.239-5,5-5h26c2.762,0,5,2.238,5,5V37z"/>
+    <path fill="#FFF" d="M34.368,25H31v13h-5V25h-3v-4h3v-2.41c0.002-3.508,1.459-5.59,5.592-5.59H35v4h-2.287C31.104,17,31,17.6,31,18.723V21h4L34.368,25z"/>
+  </svg>
+);
+
+// Add these imports if you're using SVG icons
+const RatedCoffeeIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path d="M2 21h18v-2H2v2zM20 8h-2V5h2v3zm0-5H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm-4 12c0 1.1-.9 2-2 2H8c-1.1 0-2-.9-2-2V5h10v10zm4-5h-2V7h2v3z" fill="#4CAF50"/>
+    <circle cx="18" cy="4" r="6" fill="#FFC107"/>
+    <text x="18" y="6" textAnchor="middle" fontSize="8" fill="#000">★</text>
+  </svg>
+);
+
+const UnratedCoffeeIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <path d="M2 21h18v-2H2v2zM20 8h-2V5h2v3zm0-5H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.11 0 2-.89 2-2V5c0-1.11-.89-2-2-2zm-4 12c0 1.1-.9 2-2 2H8c-1.1 0-2-.9-2-2V5h10v10zm4-5h-2V7h2v3z" fill="#757575"/>
+  </svg>
+);
+
+const Map = ({ user: initialUser }) => {
+  const [user, setUser] = useState(initialUser);
   const [mapCenter, setMapCenter] = useState(defaultCenter);
   const [coffeeShops, setCoffeeShops] = useState([]);
   const [selectedShop, setSelectedShop] = useState(null);
-  const [user, setUser] = useState(null);
   const [showRatingForm, setShowRatingForm] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: "" });
   const [infoWindowPosition, setInfoWindowPosition] = useState(null);
@@ -70,10 +111,27 @@ const Map = () => {
   const [userLocation, setUserLocation] = useState(null);
   const [userName, setUserName] = useState(null);
   const [isMapCentered, setIsMapCentered] = useState(false);
+  const [isEmailMode, setIsEmailMode] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [markers, setMarkers] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [authError, setAuthError] = useState(null);
+  const auth = getAuth();
 
   const mapOptions = {
-    mapId: process.env.REACT_APP_GOOGLE_MAPS_MAP_ID,
+    mapId: process.env.REACT_APP_GOOGLE_MAPS_ID,
+    disableDefaultUI: false,
+    zoomControl: true,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: false
   };
+
+  useEffect(() => {
+    setUser(initialUser);
+  }, [initialUser]);
 
   // Observe user authentication status
   useEffect(() => {
@@ -229,37 +287,61 @@ const Map = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (!mapInstanceRef.current || !isMapCentered) return;
+  // Debounced search with increased timing
+  const debouncedSearch = useCallback(
+    debounce((center) => {
+      console.log('Debounced search triggered at:', center);
+      searchNearby(center);
+    }, 1500), // 1.5s debounce
+    []
+  );
 
-    console.log('Searching for coffee shops at:', mapCenter);
-    
-    const service = new window.google.maps.places.PlacesService(mapInstanceRef.current);
-    const request = {
-      location: mapCenter,
-      radius: '500',
-      keyword: 'coffee shop wifi laptop',
-      type: ['cafe']
+  // Map movement handler
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    const handleMapIdle = () => {
+      const center = mapInstanceRef.current.getCenter();
+      const centerObj = {
+        lat: center.lat(),
+        lng: center.lng()
+      };
+      
+      console.log('Map idle at center:', centerObj);
+      debouncedSearch(centerObj);
     };
 
-    service.nearbySearch(request, (results, status) => {
-      if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-        console.log('Found coffee shops:', results);
-        setCoffeeShops(results);
-      } else {
-        console.error('Places search failed:', status);
+    // Initial search
+    handleMapIdle();
+
+    // Add listener
+    const idleListener = mapInstanceRef.current.addListener('idle', handleMapIdle);
+
+    // Cleanup
+    return () => {
+      if (idleListener) {
+        window.google.maps.event.removeListener(idleListener);
       }
-    });
-  }, [mapCenter]);
+      debouncedSearch.cancel();
+    };
+  }, [mapInstanceRef, debouncedSearch]);
 
+  // Function to check if a shop has ratings
+  const checkShopRatings = async (placeId) => {
+    try {
+      const ratingsRef = collection(db, 'ratings');
+      const q = query(ratingsRef, where('placeId', '==', placeId));
+      const querySnapshot = await getDocs(q);
+      return !querySnapshot.empty;
+    } catch (error) {
+      console.error('Error checking ratings:', error);
+      return false;
+    }
+  };
+
+  // Update the marker creation in the useEffect
   useEffect(() => {
-    console.log('Markers effect running', {
-      mapInstance: mapInstanceRef.current,
-      coffeeShops,
-    });
-
-    if (!mapInstanceRef.current || !coffeeShops?.length) {
-      console.log('Missing map instance or coffee shops');
+    if (!mapInstanceRef.current || !coffeeShops.length) {
       return;
     }
 
@@ -268,62 +350,122 @@ const Map = () => {
     markersRef.current = [];
 
     // Create new markers
-    coffeeShops.forEach(shop => {
-      //console.log('Creating marker for shop:', shop.name);
-      
-      const position = {
-        lat: shop.geometry.location.lat(),
-        lng: shop.geometry.location.lng()
-      };
-      
-      //console.log('Marker position:', position);
+    const createMarkers = async () => {
+      const newMarkers = await Promise.all(coffeeShops.map(async (shop) => {
+        const position = shop.geometry.location;
+        const lat = typeof position.lat === 'function' ? position.lat() : position.lat;
+        const lng = typeof position.lng === 'function' ? position.lng() : position.lng;
 
-      const marker = new window.google.maps.Marker({
-        position,
-        map: mapInstanceRef.current,
-        title: shop.name
-      });
+        // Check if shop has ratings
+        const hasRatings = await checkShopRatings(shop.place_id);
 
-      marker.addListener('click', () => handleMarkerClick(shop));
-      markersRef.current.push(marker);
-    });
+        // Create marker icon
+        const icon = {
+          url: `data:image/svg+xml,${encodeURIComponent(
+            hasRatings ? RatedCoffeeIcon() : UnratedCoffeeIcon()
+          )}`,
+          scaledSize: new window.google.maps.Size(32, 32),
+          anchor: new window.google.maps.Point(16, 32),
+        };
 
-    return () => {
-      markersRef.current.forEach(marker => marker.setMap(null));
-      markersRef.current = [];
+        const marker = new window.google.maps.Marker({
+          position: { lat, lng },
+          map: mapInstanceRef.current,
+          title: shop.name,
+          icon: icon,
+          animation: window.google.maps.Animation.DROP
+        });
+
+        marker.addListener('click', () => {
+          const transformedShop = {
+            id: shop.place_id,
+            name: shop.name,
+            formatted_address: shop.vicinity,
+            lat: lat,
+            lng: lng,
+            hasRatings: hasRatings
+          };
+          setSelectedShop(transformedShop);
+        });
+
+        return marker;
+      }));
+
+      markersRef.current = newMarkers;
     };
-  }, [coffeeShops, handleMarkerClick]);
 
-  // Add an effect to log when coffee shops change
-  useEffect(() => {
-    //console.log('Coffee shops updated:', coffeeShops);
-  }, [coffeeShops]);
+    createMarkers();
+  }, [mapInstanceRef, coffeeShops]);
 
-  const handleEmailSignIn = async (email, password) => {
+  const searchNearby = async (center) => {
+    if (!mapInstanceRef.current) return;
+
     try {
-      console.log('Attempting sign in with:', email);
-      await signInWithEmailAndPassword(auth, email, password);
-      // Don't set states here, let the auth state listener handle it
+      setIsLoading(true);
+      const service = new window.google.maps.places.PlacesService(mapInstanceRef.current);
+      
+      const request = {
+        location: new window.google.maps.LatLng(center.lat, center.lng),
+        radius: '1000',
+        type: ['cafe'],
+        keyword: 'coffee'
+      };
+
+      service.nearbySearch(request, (results, status) => {
+        setIsLoading(false);
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
+          console.log('Found coffee shops:', results.length);
+          setCoffeeShops(results);
+        } else {
+          console.error('Places search failed:', status);
+          if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+            setCoffeeShops([]);
+          }
+        }
+      });
     } catch (error) {
-      console.error('Sign in error:', error);
-      setError(error.message);
+      console.error('Error searching for coffee shops:', error);
+      setIsLoading(false);
     }
   };
 
-  const handleEmailSignUp = async (email, password, name) => {
+  const handleEmailAuth = async (e) => {
+    e.preventDefault();
+    setAuthError(null);
+    
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      if (isSignUp) {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
       
-      // Save user name to Firestore
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
-        name: name,
-        email: email,
-        createdAt: serverTimestamp()
-      });
-
+      // Close the auth form on success
+      setShowAuthForm(false);
+      setEmail('');
+      setPassword('');
+      setIsEmailMode(false);
     } catch (error) {
-      console.error('Sign up error:', error);
-      setError(error.message);
+      console.error('Auth error:', error);
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          setAuthError('An account with this email already exists');
+          break;
+        case 'auth/invalid-email':
+          setAuthError('Please enter a valid email address');
+          break;
+        case 'auth/weak-password':
+          setAuthError('Password should be at least 6 characters');
+          break;
+        case 'auth/user-not-found':
+          setAuthError('No account found with this email');
+          break;
+        case 'auth/wrong-password':
+          setAuthError('Incorrect password');
+          break;
+        default:
+          setAuthError('An error occurred. Please try again.');
+      }
     }
   };
 
@@ -338,10 +480,15 @@ const Map = () => {
   // Auth handlers
   const handleGoogleSignIn = async () => {
     try {
-      await signInWithRedirect(auth, googleProvider);
+      console.log('Starting sign-in process from Map...');
+      setShowAuthForm(false);
+      
+      const result = await signInWithGoogle();
+      console.log('Sign-in completed:', result.user.email);
     } catch (error) {
-      console.error('Google sign in error:', error);
+      console.error('Sign-in error in Map:', error);
       setError(error.message);
+      setShowAuthForm(true);
     }
   };
 
@@ -460,11 +607,11 @@ const Map = () => {
           'background-color: #4285f4; cursor: pointer;';
 
         const content = showRatingForm ? `
-          <div style="padding: 12px; min-width: 300px;">
+          <div style="padding: 12px; min-width: 300px; background-color: white; border-radius: 8px;">
             <div id="ratingFormContainer"></div>
           </div>
         ` : `
-          <div style="padding: 12px; min-width: 300px;">
+          <div style="padding: 12px; min-width: 300px; background-color: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
             <h3 style="margin: 0 0 8px 0;">${selectedShop.name}</h3>
             <p style="margin: 0 0 8px 0; color: #666;">
               ${selectedShop.formatted_address || selectedShop.vicinity || 'No address available'}
@@ -621,8 +768,24 @@ const Map = () => {
     }
   };
 
-  if (loadError) return <div>Error loading maps</div>;
-  if (!isLoaded) return <CircularProgress />;
+  // Use the user prop to show/hide appropriate UI elements
+  useEffect(() => {
+    console.log('User state in Map:', user);
+  }, [user]);
+
+  // Update useEffect to handle user changes
+  useEffect(() => {
+    console.log('User state changed in Map:', user);
+    
+    // If user signs out, reset the form state
+    if (!user) {
+      setShowRatingForm(false);
+      // Optionally, if you want to keep the InfoWindow open but show login prompt
+      if (selectedShop) {
+        setShowAuthForm(true);
+      }
+    }
+  }, [user]);
 
   return (
     <div className="map-container">
@@ -659,18 +822,6 @@ const Map = () => {
           </div>
         )}
         <SearchBar onPlaceSelected={handlePlaceSelected} />
-        <button
-          onClick={signInWithGoogle}
-          style={{
-            padding: "8px 16px",
-            backgroundColor: "red",
-            color: "white",
-            border: "none",
-            cursor: "pointer"
-          }}
-        >
-          DEBUG SIGN IN
-        </button>
       </div>
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
@@ -700,62 +851,195 @@ const Map = () => {
       </GoogleMap>
 
       {showAuthForm && (
-        <Modal onClose={() => setShowAuthForm(false)}>
-          <h2>Sign in to Rate Coffices</h2>
-          {error && (
-            <div style={{ 
-              color: 'red', 
-              marginBottom: '10px',
-              padding: '8px',
-              backgroundColor: '#ffebee',
-              borderRadius: '4px'
+        <Dialog 
+          open={showAuthForm} 
+          onClose={() => {
+            setShowAuthForm(false);
+            setIsEmailMode(false);
+            setEmail('');
+            setPassword('');
+          }}
+          PaperProps={{
+            sx: {
+              borderRadius: 2,
+              maxWidth: '400px',
+              width: '90%'
+            }
+          }}
+        >
+          <DialogTitle sx={{ 
+            textAlign: 'center',
+            pb: 1
+          }}>
+            Sign In Required
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+              py: 2
             }}>
-              {error}
-              <button 
-                onClick={() => setError(null)}
-                style={{
-                  float: 'right',
-                  border: 'none',
-                  background: 'none',
-                  cursor: 'pointer'
-                }}
-              >
-                ×
-              </button>
-            </div>
-          )}
-          <EmailSignInForm 
-            onSignIn={handleEmailSignIn}
-            onSignUp={handleEmailSignUp}
-          />
-          <div className="auth-divider">
-            <span>or continue with</span>
-          </div>
-          <button 
-            className="auth-button google"
-            onClick={handleGoogleSignIn}
-          >
-            Sign in with Google
-          </button>
-          <button 
-            className="auth-button facebook"
-            onClick={handleFacebookSignIn}
-          >
-            Sign in with Facebook
-          </button>
-          <button 
-            className="close-modal"
-            onClick={() => setShowAuthForm(false)}
-          >
-            ×
-          </button>
-        </Modal>
+              <Typography variant="body1" sx={{ textAlign: 'center', mb: 2 }}>
+                Please sign in to rate and review coffee shops
+              </Typography>
+              
+              {!isEmailMode ? (
+                <>
+                  <Button
+                    variant="contained"
+                    onClick={handleGoogleSignIn}
+                    startIcon={<GoogleIcon />}
+                    fullWidth
+                    sx={{
+                      backgroundColor: '#fff',
+                      color: '#757575',
+                      textTransform: 'none',
+                      border: '1px solid #dadce0',
+                      borderRadius: '4px',
+                      padding: '10px 24px',
+                      '&:hover': {
+                        backgroundColor: '#f8f9fa',
+                        boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)'
+                      }
+                    }}
+                  >
+                    Sign in with Google
+                  </Button>
+
+                  <Button
+                    variant="contained"
+                    onClick={() => alert('Facebook sign in coming soon!')}
+                    startIcon={<FacebookIcon />}
+                    fullWidth
+                    sx={{
+                      backgroundColor: '#1877F2',
+                      color: '#fff',
+                      textTransform: 'none',
+                      borderRadius: '4px',
+                      padding: '10px 24px',
+                      '&:hover': {
+                        backgroundColor: '#166FE5',
+                        boxShadow: '0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15)'
+                      }
+                    }}
+                  >
+                    Sign in with Facebook
+                  </Button>
+
+                  <Box sx={{ width: '100%', display: 'flex', alignItems: 'center', my: 2 }}>
+                    <Divider sx={{ flex: 1 }} />
+                    <Typography variant="body2" sx={{ mx: 2, color: 'text.secondary' }}>
+                      or
+                    </Typography>
+                    <Divider sx={{ flex: 1 }} />
+                  </Box>
+
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    onClick={() => setIsEmailMode(true)}
+                    sx={{
+                      textTransform: 'none',
+                      borderRadius: '4px',
+                      padding: '10px 24px'
+                    }}
+                  >
+                    Continue with Email
+                  </Button>
+                </>
+              ) : (
+                <form onSubmit={handleEmailAuth} style={{ width: '100%' }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <TextField
+                      label="Email"
+                      type="email"
+                      fullWidth
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      error={!!authError}
+                    />
+                    <TextField
+                      label="Password"
+                      type="password"
+                      fullWidth
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      error={!!authError}
+                      helperText={authError}
+                    />
+                    
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      fullWidth
+                      sx={{
+                        mt: 1,
+                        textTransform: 'none',
+                        borderRadius: '4px',
+                        padding: '10px 24px'
+                      }}
+                    >
+                      {isSignUp ? 'Sign Up' : 'Sign In'}
+                    </Button>
+
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                      <Button
+                        variant="text"
+                        onClick={() => setIsSignUp(!isSignUp)}
+                        sx={{
+                          textTransform: 'none',
+                          color: 'text.secondary'
+                        }}
+                      >
+                        {isSignUp ? 'Already have an account?' : 'Need an account?'}
+                      </Button>
+                      <Button
+                        variant="text"
+                        onClick={() => setIsEmailMode(false)}
+                        sx={{
+                          textTransform: 'none',
+                          color: 'text.secondary'
+                        }}
+                      >
+                        Back to all options
+                      </Button>
+                    </Box>
+                  </Box>
+                </form>
+              )}
+            </Box>
+          </DialogContent>
+        </Dialog>
       )}
 
       {error && (
         <div className="error-message">
           {error}
           <button onClick={() => setError(null)}>×</button>
+        </div>
+      )}
+
+      {isLoading && (
+        <div style={{
+          position: 'absolute',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: 'white',
+          padding: '8px 16px',
+          borderRadius: '20px',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          zIndex: 1000
+        }}>
+          <CircularProgress size={20} />
+          <span>Updating...</span>
         </div>
       )}
     </div>
