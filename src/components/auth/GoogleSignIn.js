@@ -1,25 +1,51 @@
-import { signInWithRedirect, getRedirectResult } from 'firebase/auth';
-import { auth, googleProvider } from '../firebaseConfig';
-import { useEffect } from 'react';
+import { signInWithGoogle } from '../../firebaseConfig';
 
-export const handleGoogleSignIn = async () => {
-  try {
-    await signInWithRedirect(auth, googleProvider);
-  } catch (error) {
-    console.error("Error signing in with Google:", error);
+const GoogleSignIn = () => {
+  const handleGoogleSignIn = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      console.error("Error signing in with Google:", error);
+    }
+  };
+
+  return (
+    <button 
+      onClick={handleGoogleSignIn}
+      style={styles.button}
+    >
+      <img 
+        src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
+        alt="Google logo" 
+        style={styles.icon} 
+      />
+      Sign in with Google
+    </button>
+  );
+};
+
+const styles = {
+  button: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '10px',
+    width: '100%',
+    padding: '12px',
+    backgroundColor: 'white',
+    border: '1px solid #ddd',
+    borderRadius: '4px',
+    fontSize: '16px',
+    cursor: 'pointer',
+    transition: 'background-color 0.2s',
+    ':hover': {
+      backgroundColor: '#f5f5f5',
+    }
+  },
+  icon: {
+    width: '18px',
+    height: '18px'
   }
 };
 
-// Add this useEffect in your App.js or main component
-useEffect(() => {
-  getRedirectResult(auth)
-    .then((result) => {
-      if (result) {
-        // Handle successful sign-in
-        console.log("Successfully signed in:", result.user);
-      }
-    })
-    .catch((error) => {
-      console.error("Error completing sign-in:", error);
-    });
-}, []);
+export default GoogleSignIn;

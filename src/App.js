@@ -1,56 +1,73 @@
-import React from "react";
-import Map from "./Map";
 import { useEffect, useState } from 'react';
-import { auth } from './firebaseConfig';
+import { BrowserRouter } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { useLoadScript } from '@react-google-maps/api';
-import CircularProgress from "@mui/material/CircularProgress";
-
-const libraries = ['places'];
+import { auth, handleRedirectResult } from './firebaseConfig';
+import EmailSignIn from './components/auth/EmailSignIn';
+import GoogleSignIn from './components/auth/GoogleSignIn';
+import Modal from './components/Modal';
+import MapLoader from './components/MapLoader';
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
-    libraries,
-  });
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   useEffect(() => {
     console.log('Setting up auth state listener...');
-    
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      console.log('Auth state changed:', currentUser?.email ?? 'No user');
-      setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
       setLoading(false);
+      console.log('Auth state changed:', user ? 'User logged in' : 'No user');
     });
 
     return () => unsubscribe();
   }, []);
 
-  if (loadError) return <div>Error loading maps</div>;
-  if (!isLoaded || loading) return <CircularProgress />;
+  useEffect(() => {
+    handleRedirectResult();
+  }, []);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      setShowAuthModal(true);
+    }
+  }, [loading, user]);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   return (
-    <div className="App">
-      <Map user={user} />
-      {process.env.NODE_ENV === 'development' && (
-        <div style={{
-          position: 'fixed',
-          bottom: 10,
-          right: 10,
-          background: 'white',
-          padding: 10,
-          border: '1px solid #ccc',
-          zIndex: 1000
-        }}>
-          Auth Status: {user ? `Logged in (${user.email})` : 'Not logged in'}
-        </div>
+    <BrowserRouter>
+      <MapLoader user={user} onSignInClick={() => setShowAuthModal(true)} />
+      
+      {showAuthModal && !user && (
+        <Modal onClose={() => user && setShowAuthModal(false)}>
+          <div style={styles.authContainer}>
+            <EmailSignIn />
+            <div style={styles.divider} />
+            <GoogleSignIn />
+          </div>
+        </Modal>
       )}
-    </div>
+    </BrowserRouter>
   );
 }
+
+const styles = {
+  authContainer: {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px'
+  },
+  divider: {
+    width: '100%',
+    height: '1px',
+    backgroundColor: '#e0e0e0',
+    margin: '4px 0'
+  }
+};
 
 export default App;
 

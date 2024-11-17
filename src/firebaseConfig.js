@@ -4,7 +4,9 @@ import {
   getAuth, 
   GoogleAuthProvider, 
   signInWithRedirect,
-  getRedirectResult
+  getRedirectResult,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword 
 } from "firebase/auth";
 
 const firebaseConfig = {
@@ -29,13 +31,6 @@ googleProvider.addScope('profile');
 export const signInWithGoogle = async () => {
   try {
     console.log('Starting Google sign-in process...');
-    
-    // Only set the prompt parameter
-    googleProvider.setCustomParameters({
-      prompt: 'select_account'
-    });
-
-    console.log('Initiating redirect...');
     await signInWithRedirect(auth, googleProvider);
   } catch (error) {
     console.error('Sign-in error:', error);
@@ -43,16 +38,37 @@ export const signInWithGoogle = async () => {
   }
 };
 
-export const checkAuthRedirect = async () => {
+export const handleRedirectResult = async () => {
   try {
-    console.log('Checking redirect result...');
     const result = await getRedirectResult(auth);
-    if (result?.user) {
-      console.log('Redirect successful:', result.user.email);
+    if (result) {
+      console.log('Sign-in successful:', result.user.email);
+      return result;
     }
+  } catch (error) {
+    console.error('Redirect error:', error);
+    throw error;
+  }
+};
+
+export const signInWithEmail = async (email, password) => {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    console.log('Email sign-in successful:', result.user.email);
     return result;
   } catch (error) {
-    console.error('Redirect check error:', error);
+    console.error('Sign-in error:', error);
+    throw error;
+  }
+};
+
+export const signUpWithEmail = async (email, password) => {
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    console.log('Email sign-up successful:', result.user.email);
+    return result;
+  } catch (error) {
+    console.error('Sign-up error:', error);
     throw error;
   }
 };
