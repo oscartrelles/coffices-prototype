@@ -5,6 +5,9 @@ import colors from '../styles/colors';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import Header from './Header';
+import RatingForm from '../RatingForm';
+import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 const DEFAULT_LOCATION = { lat: 36.7213028, lng: -4.4216366 }; // Málaga
 const DEFAULT_ZOOM = 14;
@@ -77,6 +80,8 @@ function Map({ user, onSignInClick }) {
   const [selectedMarker, setSelectedMarker] = useState(null);
   const [coffeeShops, setCoffeeShops] = useState([]);
   const [currentLocation, setCurrentLocation] = useState(DEFAULT_LOCATION);
+  const [showRatingForm, setShowRatingForm] = useState(false);
+  const [cofficeRatings, setCofficeRatings] = useState(null);
 
   const mapRef = useRef(null);
   const markersRef = useRef({});
@@ -293,6 +298,124 @@ function Map({ user, onSignInClick }) {
     }
   }, []);
 
+  // Add idle listener to search when map stops moving
+  useEffect(() => {
+    if (!mapInstance) return;
+
+    const handleIdle = () => {
+      const center = mapInstance.getCenter();
+      if (!center) return;
+
+      const newLocation = {
+        lat: center.lat(),
+        lng: center.lng()
+      };
+
+      // Only search if we've moved significantly from the last search
+      if (currentLocation && (
+        Math.abs(currentLocation.lat - newLocation.lat) > 0.01 ||
+        Math.abs(currentLocation.lng - newLocation.lng) > 0.01
+      )) {
+        console.log('Map idle at new location:', newLocation);
+        setCurrentLocation(newLocation);
+        searchNearby(newLocation);
+      }
+    };
+
+    const idleListener = mapInstance.addListener('idle', handleIdle);
+
+    return () => {
+      if (idleListener) {
+        window.google.maps.event.removeListener(idleListener);
+      }
+    };
+  }, [mapInstance, currentLocation, searchNearby]);
+
+  // Update rating handling for multiple categories
+  const handleRating = useCallback(async (ratings) => {
+    if (!user || !selectedShop) return;
+
+    try {
+      const ratingRef = doc(db, 'ratings', `${selectedShop.place_id}_${user.uid}`);
+      const shopRef = doc(db, 'shops', selectedShop.place_id);
+
+      // Save individual rating with all categories
+      await setDoc(ratingRef, {
+        userId: user.uid,
+        placeId: selectedShop.place_id,
+        ...ratings,
+        timestamp: new Date().toISOString()
+      });
+
+      // Get existing shop data
+      const shopDoc = await getDoc(shopRef);
+      const shopData = shopDoc.exists() ? shopDoc.data() : {
+        totalRatings: 0,
+        averageRatings: {
+          wifi: 0,
+          power: 0,
+          noise: 0,
+          coffee: 0
+        },
+        name: selectedShop.name,
+        address: selectedShop.vicinity,
+        location: {
+          lat: selectedShop.geometry.location.lat(),
+          lng: selectedShop.geometry.location.lng()
+        }
+      };
+
+      // Calculate new averages for each category
+      const newTotal = shopData.totalRatings + 1;
+      const newAverages = {};
+      
+      ['wifi', 'power', 'noise', 'coffee'].forEach(category => {
+        newAverages[category] = (
+          (shopData.averageRatings[category] * shopData.totalRatings) + ratings[category]
+        ) / newTotal;
+      });
+
+      // Save updated shop data
+      await setDoc(shopRef, {
+        ...shopData,
+        totalRatings: newTotal,
+        averageRatings: newAverages,
+        lastUpdated: new Date().toISOString()
+      });
+
+      console.log('Ratings saved successfully');
+      setShowRatingForm(false);
+    } catch (error) {
+      console.error('Error saving ratings:', error);
+    }
+  }, [user, selectedShop]);
+
+  // Add function to fetch ratings
+  const fetchCofficeRatings = useCallback(async (placeId) => {
+    try {
+      const shopRef = doc(db, 'shops', placeId);
+      const shopDoc = await getDoc(shopRef);
+      
+      if (shopDoc.exists()) {
+        setCofficeRatings(shopDoc.data());
+      } else {
+        setCofficeRatings(null);
+      }
+    } catch (error) {
+      console.error('Error fetching coffice ratings:', error);
+      setCofficeRatings(null);
+    }
+  }, []);
+
+  // Add effect to fetch ratings when shop is selected
+  useEffect(() => {
+    if (selectedShop) {
+      fetchCofficeRatings(selectedShop.place_id);
+    } else {
+      setCofficeRatings(null);
+    }
+  }, [selectedShop, fetchCofficeRatings]);
+
   // Add this return statement at the end of the Map component
   return (
     <div style={styles.container}>
@@ -309,6 +432,8 @@ function Map({ user, onSignInClick }) {
             style={styles.closeButton}
             onClick={() => {
               setSelectedShop(null);
+              setShowRatingForm(false);
+              setCofficeRatings(null);
               if (selectedMarker) {
                 selectedMarker.setIcon(markerStyles.default);
                 setSelectedMarker(null);
@@ -319,10 +444,52 @@ function Map({ user, onSignInClick }) {
           </button>
           <h3 style={styles.title}>{selectedShop.name}</h3>
           <p style={styles.address}>{selectedShop.vicinity}</p>
-          {selectedShop.rating && (
-            <p style={styles.rating}>
-              Rating: {selectedShop.rating} ({selectedShop.user_ratings_total} reviews)
-            </p>
+          
+          {/* Ratings Display */}
+          <div style={styles.ratingsContainer}>
+            {cofficeRatings && cofficeRatings.totalRatings > 0 ? (
+              <div style={styles.ratingSection}>
+                <h4 style={styles.ratingTitle}>Coffice Rating</h4>
+                <div style={styles.cofficeRatings}>
+                  <p style={styles.ratingItem}>
+                    📶 WiFi: {cofficeRatings.averageRatings.wifi.toFixed(1)}
+                  </p>
+                  <p style={styles.ratingItem}>
+                    🔌 Power: {cofficeRatings.averageRatings.power.toFixed(1)}
+                  </p>
+                  <p style={styles.ratingItem}>
+                    🔊 Noise: {cofficeRatings.averageRatings.noise.toFixed(1)}
+                  </p>
+                  <p style={styles.ratingItem}>
+                    ☕️ Coffee: {cofficeRatings.averageRatings.coffee.toFixed(1)}
+                  </p>
+                  <p style={styles.totalRatings}>
+                    Based on {cofficeRatings.totalRatings} {cofficeRatings.totalRatings === 1 ? 'rating' : 'ratings'}
+                  </p>
+                </div>
+              </div>
+            ) : selectedShop.rating ? (
+              <div style={styles.ratingSection}>
+                <h4 style={styles.ratingTitle}>Google Rating</h4>
+                <p style={styles.rating}>
+                  ⭐️ {selectedShop.rating.toFixed(1)} ({selectedShop.user_ratings_total})
+                </p>
+              </div>
+            ) : null}
+          </div>
+          
+          {!showRatingForm ? (
+            <button
+              onClick={() => user ? setShowRatingForm(true) : onSignInClick()}
+              style={styles.rateButton}
+            >
+              {user ? 'Rate this Coffice' : 'Sign in to rate'}
+            </button>
+          ) : (
+            <RatingForm
+              onSubmit={handleRating}
+              onCancel={() => setShowRatingForm(false)}
+            />
           )}
         </div>
       )}
@@ -427,6 +594,53 @@ const styles = {
     ':hover': {
       backgroundColor: colors.primary.dark,
     }
+  },
+  rateButton: {
+    width: '100%',
+    padding: '8px 16px',
+    backgroundColor: colors.primary.main,
+    color: colors.text.white,
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    marginTop: '12px',
+    fontSize: '14px',
+    fontWeight: '500',
+  },
+  ratingsContainer: {
+    marginTop: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  },
+  ratingSection: {
+    padding: '8px',
+    backgroundColor: colors.background.paper,
+    borderRadius: '4px',
+    border: `1px solid ${colors.border}`,
+  },
+  ratingTitle: {
+    margin: '0 0 8px 0',
+    fontSize: '14px',
+    fontWeight: '600',
+    color: colors.text.secondary,
+  },
+  cofficeRatings: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '8px',
+  },
+  ratingItem: {
+    margin: 0,
+    fontSize: '14px',
+    color: colors.text.primary,
+  },
+  totalRatings: {
+    margin: '8px 0 0 0',
+    gridColumn: '1 / -1',
+    fontSize: '12px',
+    color: colors.text.secondary,
+    textAlign: 'center',
   }
 };
 
