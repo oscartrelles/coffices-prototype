@@ -27,12 +27,6 @@ function App() {
     handleRedirectResult();
   }, []);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      setShowAuthModal(true);
-    }
-  }, [loading, user]);
-
   if (loading) {
     return <div>Loading...</div>;
   }

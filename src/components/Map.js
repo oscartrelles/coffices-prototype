@@ -82,10 +82,14 @@ function Map({ user, onSignInClick }) {
   const [currentLocation, setCurrentLocation] = useState(DEFAULT_LOCATION);
   const [showRatingForm, setShowRatingForm] = useState(false);
   const [cofficeRatings, setCofficeRatings] = useState(null);
+  const [userRating, setUserRating] = useState(null);
 
   const mapRef = useRef(null);
   const markersRef = useRef({});
   const clustererRef = useRef(null);
+
+  // Add state for showing comments
+  const [showComments, setShowComments] = useState(false);
 
   // Add a function to handle marker selection
   const handleMarkerClick = useCallback((marker, shop) => {
@@ -416,6 +420,34 @@ function Map({ user, onSignInClick }) {
     }
   }, [selectedShop, fetchCofficeRatings]);
 
+  // Add function to fetch user's rating
+  const fetchUserRating = useCallback(async (placeId, userId) => {
+    if (!userId) return;
+    
+    try {
+      const ratingRef = doc(db, 'ratings', `${placeId}_${userId}`);
+      const ratingDoc = await getDoc(ratingRef);
+      
+      if (ratingDoc.exists()) {
+        setUserRating(ratingDoc.data());
+      } else {
+        setUserRating(null);
+      }
+    } catch (error) {
+      console.error('Error fetching user rating:', error);
+      setUserRating(null);
+    }
+  }, []);
+
+  // Add effect to fetch user's rating when shop is selected
+  useEffect(() => {
+    if (selectedShop && user) {
+      fetchUserRating(selectedShop.place_id, user.uid);
+    } else {
+      setUserRating(null);
+    }
+  }, [selectedShop, user, fetchUserRating]);
+
   // Add this return statement at the end of the Map component
   return (
     <div style={styles.container}>
@@ -466,6 +498,24 @@ function Map({ user, onSignInClick }) {
                   <p style={styles.totalRatings}>
                     Based on {cofficeRatings.totalRatings} {cofficeRatings.totalRatings === 1 ? 'rating' : 'ratings'}
                   </p>
+                  
+                  {/* Comments Button */}
+                  {cofficeRatings.totalRatings > 0 && (
+                    <button
+                      onClick={() => user ? setShowComments(!showComments) : onSignInClick()}
+                      style={styles.commentsButton}
+                    >
+                      {user ? (showComments ? 'Hide Comments' : 'Show Comments') : 'Sign in to see comments'}
+                    </button>
+                  )}
+                  
+                  {/* Comments Section */}
+                  {user && showComments && (
+                    <div style={styles.commentsSection}>
+                      {/* We'll need to fetch and display comments here */}
+                      {/* This will be implemented in the next iteration */}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : selectedShop.rating ? (
@@ -478,14 +528,17 @@ function Map({ user, onSignInClick }) {
             ) : null}
           </div>
           
-          {!showRatingForm ? (
+          {/* Rate Button or Rating Form */}
+          {!userRating && !showRatingForm && (
             <button
               onClick={() => user ? setShowRatingForm(true) : onSignInClick()}
               style={styles.rateButton}
             >
               {user ? 'Rate this Coffice' : 'Sign in to rate'}
             </button>
-          ) : (
+          )}
+          
+          {showRatingForm && (
             <RatingForm
               onSubmit={handleRating}
               onCancel={() => setShowRatingForm(false)}
@@ -641,6 +694,49 @@ const styles = {
     fontSize: '12px',
     color: colors.text.secondary,
     textAlign: 'center',
+  },
+  userRatingSection: {
+    marginTop: '12px',
+    padding: '8px',
+    backgroundColor: colors.background.paper,
+    borderRadius: '4px',
+    border: `1px solid ${colors.border}`,
+  },
+  userComment: {
+    gridColumn: '1 / -1',
+    margin: '8px 0 0 0',
+    fontSize: '14px',
+    color: colors.text.secondary,
+    fontStyle: 'italic',
+  },
+  ratingDate: {
+    gridColumn: '1 / -1',
+    margin: '8px 0 0 0',
+    fontSize: '12px',
+    color: colors.text.secondary,
+    textAlign: 'center',
+  },
+  commentsButton: {
+    gridColumn: '1 / -1',
+    padding: '8px',
+    marginTop: '8px',
+    backgroundColor: 'transparent',
+    color: colors.text.secondary,
+    border: `1px solid ${colors.border}`,
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    transition: 'all 0.2s ease',
+    ':hover': {
+      backgroundColor: colors.background.main,
+    }
+  },
+  commentsSection: {
+    gridColumn: '1 / -1',
+    marginTop: '12px',
+    padding: '8px',
+    backgroundColor: colors.background.main,
+    borderRadius: '4px',
   }
 };
 
