@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import colors from '../styles/colors';
 
 function SearchBar({ onLocationSelect }) {
   const [searchInput, setSearchInput] = useState('');
@@ -21,6 +22,16 @@ function SearchBar({ onLocationSelect }) {
 
     const autocompleteInstance = new window.google.maps.places.Autocomplete(input, options);
     
+    // Style the autocomplete dropdown
+    const pacContainer = document.querySelector('.pac-container');
+    if (pacContainer) {
+      pacContainer.style.border = `1px solid ${colors.border}`;
+      pacContainer.style.borderRadius = '0 0 8px 8px';
+      pacContainer.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
+      pacContainer.style.marginTop = '4px';
+      pacContainer.style.backgroundColor = colors.background.paper;
+    }
+
     const placeChangedListener = () => {
       const place = autocompleteInstance.getPlace();
       console.log('Place selected:', place);
@@ -30,6 +41,7 @@ function SearchBar({ onLocationSelect }) {
         return;
       }
 
+      // Update URL and map
       const placeName = place.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
       navigate(`/s/${placeName}`);
       onLocationSelect(place);
@@ -44,49 +56,23 @@ function SearchBar({ onLocationSelect }) {
     return () => {
       if (autocompleteRef.current) {
         window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-        autocompleteRef.current = null;
       }
     };
   }, [navigate, onLocationSelect]);
 
-  const handleCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const location = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          console.log('Current location:', location);
-          onLocationSelect(location);
-          navigate('/s/current-location');
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-        }
-      );
-    }
-  };
-
   return (
-    <div className="search-bar-container" style={styles.container}>
-      <input
-        id="search-input"
-        type="text"
-        value={searchInput}
-        onChange={(e) => setSearchInput(e.target.value)}
-        placeholder="Search for a city..."
-        style={styles.input}
-        autoComplete="off"
-      />
-      <button 
-        onClick={handleCurrentLocation}
-        style={styles.locationButton}
-        title="Use my current location"
-        aria-label="Use my current location"
-      >
-        📍
-      </button>
+    <div style={styles.container}>
+      <div style={styles.searchContainer}>
+        <input
+          id="search-input"
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Search for a city..."
+          style={styles.input}
+        />
+        <div style={styles.searchIcon}>🔍</div>
+      </div>
     </div>
   );
 }
@@ -94,45 +80,90 @@ function SearchBar({ onLocationSelect }) {
 const styles = {
   container: {
     position: 'absolute',
-    top: '10px',
+    top: '20px',
     left: '50%',
     transform: 'translateX(-50%)',
-    zIndex: 1000,
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    width: '92%',
-    maxWidth: '600px',
-    padding: '0 8px',
+    width: '90%',
+    maxWidth: '400px',
+    zIndex: 1,
+    padding: '0 16px',
+  },
+  searchContainer: {
+    position: 'relative',
+    width: '100%',
   },
   input: {
-    flex: 1,
-    padding: '14px 16px',
+    width: '100%',
+    padding: '12px 40px 12px 16px', // Added right padding for search icon
     fontSize: '16px',
-    border: 'none',
+    border: `1px solid ${colors.border}`,
     borderRadius: '8px',
-    boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+    backgroundColor: colors.background.paper,
+    color: colors.text.primary,
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
     outline: 'none',
-    WebkitAppearance: 'none',
-    height: '48px',
-    maxHeight: '48px',
+    transition: 'all 0.2s ease',
+    ':focus': {
+      borderColor: colors.primary.main,
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+    },
+    '::placeholder': {
+      color: colors.text.secondary,
+    }
   },
-  locationButton: {
-    width: '48px',
-    height: '48px',
-    padding: '12px',
-    fontSize: '16px',
-    backgroundColor: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    WebkitTapHighlightColor: 'transparent',
-    touchAction: 'manipulation',
+  searchIcon: {
+    position: 'absolute',
+    right: '12px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    fontSize: '18px',
+    color: colors.text.secondary,
+    pointerEvents: 'none',
   }
 };
+
+// Add global styles for Google Places Autocomplete dropdown
+const styleTag = document.createElement('style');
+styleTag.textContent = `
+  .pac-container {
+    border: 1px solid ${colors.border} !important;
+    border-radius: 0 0 8px 8px !important;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+    margin-top: 4px !important;
+    background-color: ${colors.background.paper} !important;
+    font-family: inherit !important;
+  }
+  
+  .pac-item {
+    padding: 8px 16px !important;
+    cursor: pointer !important;
+    font-size: 14px !important;
+    color: ${colors.text.primary} !important;
+    border-top: 1px solid ${colors.border} !important;
+  }
+  
+  .pac-item:first-child {
+    border-top: none !important;
+  }
+  
+  .pac-item:hover {
+    background-color: ${colors.background.main} !important;
+  }
+  
+  .pac-item-query {
+    font-size: 14px !important;
+    color: ${colors.text.primary} !important;
+  }
+  
+  .pac-matched {
+    color: ${colors.primary.main} !important;
+    font-weight: 600 !important;
+  }
+  
+  .pac-icon {
+    display: none !important;
+  }
+`;
+document.head.appendChild(styleTag);
 
 export default SearchBar; 

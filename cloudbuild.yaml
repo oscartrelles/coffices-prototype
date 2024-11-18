@@ -1,0 +1,18 @@
+steps:
+  # Install dependencies
+  - name: node:18
+    entrypoint: npm
+    args: ['install']
+    
+  # Build the app
+  - name: node:18
+    entrypoint: npm
+    args: ['run', 'build']
+    env:
+      - 'NODE_OPTIONS=--max_old_space_size=4096'
+      
+  # Deploy to App Engine
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: ['app', 'deploy']
+    
+timeout: '1800s' 
