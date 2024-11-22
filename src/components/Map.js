@@ -61,7 +61,7 @@ function Map({ user, onSignInClick, selectedLocation }) {
   const mapStyles = [
     {
       elementType: "geometry",
-      stylers: [{ color: colors.background.main }]
+      stylers: [{ color: "#f5f5f5" }]
     },
     {
       featureType: "poi",
@@ -74,22 +74,22 @@ function Map({ user, onSignInClick, selectedLocation }) {
     {
       featureType: "water",
       elementType: "geometry",
-      stylers: [{ color: colors.primary.light }]
+      stylers: [{ color: "#c5e1f2" }]
     },
     {
       featureType: "road",
       elementType: "geometry",
-      stylers: [{ color: colors.background.paper }]
+      stylers: [{ color: "#ffffff" }]
     },
     {
       featureType: "road",
       elementType: "labels.text.fill",
-      stylers: [{ color: colors.text.secondary }]
+      stylers: [{ color: "#666666" }]
     },
     {
       featureType: "administrative",
       elementType: "labels.text.fill",
-      stylers: [{ color: colors.text.primary }]
+      stylers: [{ color: "#333333" }]
     }
   ];
 
@@ -447,7 +447,7 @@ function Map({ user, onSignInClick, selectedLocation }) {
           const map = new window.google.maps.Map(mapRef.current, {
             center: userLocation,  // Use user location as center
             zoom: 15,
-            minZoom: 11,
+            minZoom: 14,
             maxZoom: 17,
             styles: mapStyles,
             disableDefaultUI: true,

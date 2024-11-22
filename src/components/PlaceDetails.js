@@ -181,15 +181,18 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
 
 const styles = {
   container: {
-    padding: '16px',
+    padding: '12px',
     backgroundColor: colors.background.paper,
     borderRadius: '4px',
     border: `1px solid ${colors.border}`,
+    maxHeight: 'calc(80vh - 40px)',
+    overflowY: 'auto',
+    paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
   },
   details: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
+    gap: '4px',
   },
   rating: {
     display: 'flex',
@@ -209,6 +212,8 @@ const styles = {
     alignItems: 'center',
     gap: '4px',
     color: colors.text.secondary,
+    fontSize: '0.9rem',
+    marginBottom: '8px',
   },
   distance: {
     display: 'flex',
