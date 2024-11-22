@@ -4,57 +4,36 @@ import colors from '../styles/colors';
 
 const GOOGLE_MAPS_SCRIPT_ID = 'google-maps-script';
 
-const MapLoader = ({ user, onSignInClick }) => {
+const MapLoader = ({ children, onMapLoaded }) => {
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    // If Google Maps is already loaded
-    if (window.google && window.google.maps) {
+    if (window.google) {
       console.log('Google Maps already loaded');
       setIsLoaded(true);
+      onMapLoaded?.(true);
       return;
     }
 
-    // Check for existing script
-    const existingScript = document.getElementById(GOOGLE_MAPS_SCRIPT_ID);
-    if (existingScript) {
-      console.log('Script already exists, waiting for load');
-      existingScript.addEventListener('load', () => setIsLoaded(true));
-      return;
-    }
-
-    // Load Google Maps API
     console.log('Creating new script element');
     const script = document.createElement('script');
-    script.id = GOOGLE_MAPS_SCRIPT_ID;
     script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places`;
     script.async = true;
-    
     script.onload = () => {
       console.log('Google Maps loaded successfully');
       setIsLoaded(true);
-    };
-
-    script.onerror = (error) => {
-      console.error('Error loading Google Maps:', error);
+      onMapLoaded?.(true);
     };
 
     document.head.appendChild(script);
 
-    // No cleanup - we want to keep the script loaded
-  }, []);
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, [onMapLoaded]);
 
   console.log('MapLoader render - isLoaded:', isLoaded);
-
-  if (!isLoaded) {
-    return (
-      <div style={styles.loadingContainer}>
-        <div style={styles.loadingText}>Loading map...</div>
-      </div>
-    );
-  }
-
-  return <Map user={user} onSignInClick={onSignInClick} />;
+  return isLoaded ? children : null;
 };
 
 const styles = {

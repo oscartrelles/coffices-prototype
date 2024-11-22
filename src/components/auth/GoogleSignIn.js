@@ -1,51 +1,47 @@
-import { signInWithGoogle } from '../../firebaseConfig';
+import { useState } from 'react';
+import { signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
+import { auth } from '../../firebaseConfig';
+import { Button } from '@mui/material';
+import GoogleIcon from '@mui/icons-material/Google';
+import colors from '../../styles/colors';
 
 const GoogleSignIn = () => {
+  const [isLoading, setIsLoading] = useState(false);
+
   const handleGoogleSignIn = async () => {
+    setIsLoading(true);
     try {
-      await signInWithGoogle();
+      const provider = new GoogleAuthProvider();
+      await signInWithRedirect(auth, provider);
     } catch (error) {
-      console.error("Error signing in with Google:", error);
+      console.error('Google sign-in error:', error);
+      setIsLoading(false);
     }
   };
 
   return (
-    <button 
+    <Button
+      variant="contained"
+      startIcon={<GoogleIcon />}
       onClick={handleGoogleSignIn}
-      style={styles.button}
+      disabled={isLoading}
+      fullWidth
+      sx={{
+        backgroundColor: colors.background.paper,
+        color: colors.text.secondary,
+        textTransform: 'none',
+        border: `1px solid ${colors.border}`,
+        '&:hover': {
+          backgroundColor: colors.background.main,
+        },
+        '&:disabled': {
+          color: colors.text.disabled,
+        }
+      }}
     >
-      <img 
-        src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
-        alt="Google logo" 
-        style={styles.icon} 
-      />
-      Sign in with Google
-    </button>
+      {isLoading ? 'Signing in...' : 'Continue with Google'}
+    </Button>
   );
-};
-
-const styles = {
-  button: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '10px',
-    width: '100%',
-    padding: '12px',
-    backgroundColor: 'white',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    fontSize: '16px',
-    cursor: 'pointer',
-    transition: 'background-color 0.2s',
-    ':hover': {
-      backgroundColor: '#f5f5f5',
-    }
-  },
-  icon: {
-    width: '18px',
-    height: '18px'
-  }
 };
 
 export default GoogleSignIn;

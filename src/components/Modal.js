@@ -1,52 +1,66 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import colors from '../styles/colors';
+import { IconButton } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 
-const Modal = ({ children, onClose }) => {
-  const [modalRoot, setModalRoot] = useState(null);
+const Modal = ({ open, onClose, children }) => {
+  if (!open) return null;
 
-  useEffect(() => {
-    let element = document.getElementById('modal-root');
-    if (!element) {
-      element = document.createElement('div');
-      element.id = 'modal-root';
-      document.body.appendChild(element);
-    }
-    setModalRoot(element);
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, []);
-
-  if (!modalRoot) {
-    return null;
-  }
-
-  return createPortal(
+  return (
     <div 
-      style={styles.overlay}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
+      className="modal-overlay"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000
       }}
     >
-      <div style={styles.modal}>
-        <button 
+      <div 
+        onClick={e => e.stopPropagation()} 
+        style={{
+          backgroundColor: 'white',
+          padding: '20px',
+          borderRadius: '8px',
+          maxWidth: '90%',
+          width: '400px',
+          position: 'relative',
+          '@media (min-width: 768px)': {
+            width: '500px'
+          }
+        }}
+      >
+        <button
           onClick={onClose}
-          style={styles.closeButton}
-          aria-label="Close modal"
+          style={{
+            position: 'absolute',
+            right: '10px',
+            top: '10px',
+            background: 'none',
+            border: 'none',
+            fontSize: '20px',
+            cursor: 'pointer',
+            padding: '5px',
+            color: '#666',
+            lineHeight: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
         >
           ×
         </button>
-        <div style={styles.content}>
-          {children}
-        </div>
+        {children}
       </div>
-    </div>,
-    modalRoot
+    </div>
   );
 };
 
@@ -57,28 +71,22 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(44, 62, 53, 0.6)',
-    backdropFilter: 'blur(5px)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     display: 'flex',
-    justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 9999,
-    padding: '20px'
+    justifyContent: 'center',
+    zIndex: 99999
   },
   modal: {
-    background: colors.background.paper,
-    borderRadius: '12px',
-    width: '95%',
-    maxWidth: '400px',
-    position: 'relative',
-    boxShadow: `0 10px 25px ${colors.background.overlay}`,
-    transform: 'translateY(0)',
-    animation: 'modalSlideIn 0.3s ease-out',
+    backgroundColor: colors.background.paper,
+    borderRadius: '8px',
+    padding: '20px',
+    maxWidth: '90%',
+    width: '500px',
     maxHeight: '90vh',
-    overflowY: 'auto',
-    '@media (min-width: 768px)': {
-      width: '380px'
-    }
+    overflow: 'auto',
+    position: 'relative',
+    zIndex: 100000
   },
   closeButton: {
     position: 'absolute',

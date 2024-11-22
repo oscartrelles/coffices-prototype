@@ -1,69 +1,52 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import colors from '../styles/colors';
+import MyLocationIcon from '@mui/icons-material/MyLocation';
+import { Paper, InputBase, IconButton } from '@mui/material';
 
-function SearchBar({ onLocationSelect }) {
+function SearchBar({ onLocationSelect, isMapLoaded }) {
   const [searchInput, setSearchInput] = useState('');
   const autocompleteRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!window.google) return;
-
-    const input = document.getElementById('search-input');
-    if (!input) return;
-
-    console.log('Initializing autocomplete');
-
-    const options = {
-      types: ['(cities)'],
-      fields: ['name', 'geometry', 'formatted_address']
-    };
-
-    const autocompleteInstance = new window.google.maps.places.Autocomplete(input, options);
-    
-    // Style the autocomplete dropdown
-    const pacContainer = document.querySelector('.pac-container');
-    if (pacContainer) {
-      pacContainer.style.border = `1px solid ${colors.border}`;
-      pacContainer.style.borderRadius = '0 0 8px 8px';
-      pacContainer.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
-      pacContainer.style.marginTop = '4px';
-      pacContainer.style.backgroundColor = colors.background.paper;
+    if (!isMapLoaded) {
+      console.log('Waiting for map to load...');
+      return;
     }
 
-    const placeChangedListener = () => {
-      const place = autocompleteInstance.getPlace();
-      console.log('Place selected:', place);
+    console.log('Map is loaded, initializing autocomplete');
+    const input = document.getElementById('search-input');
+    if (!input) {
+      console.error('Search input not found');
+      return;
+    }
 
-      if (!place.geometry || !place.geometry.location) {
-        console.error('No geometry found for place:', place);
-        return;
-      }
-
-      // Update URL and map
-      const placeName = place.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-      navigate(`/s/${placeName}`);
-      onLocationSelect(place);
-      
-      // Clear input
-      setSearchInput('');
-    };
-
-    autocompleteInstance.addListener('place_changed', placeChangedListener);
+    const autocompleteInstance = new window.google.maps.places.Autocomplete(input, {
+      types: ['(cities)'],
+      fields: ['name', 'geometry', 'formatted_address']
+    });
     autocompleteRef.current = autocompleteInstance;
+
+    autocompleteInstance.addListener('place_changed', () => {
+      const place = autocompleteInstance.getPlace();
+      if (place.geometry) {
+        onLocationSelect(place);
+      }
+    });
 
     return () => {
       if (autocompleteRef.current) {
         window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+        autocompleteRef.current = null;
       }
     };
-  }, [navigate, onLocationSelect]);
+  }, [isMapLoaded, onLocationSelect]);
 
   return (
     <div style={styles.container}>
-      <div style={styles.searchContainer}>
-        <input
+      <Paper component="form" sx={styles.searchBar} elevation={3}>
+        <InputBase
           id="search-input"
           type="text"
           value={searchInput}
@@ -71,24 +54,54 @@ function SearchBar({ onLocationSelect }) {
           placeholder="Search for a city..."
           style={styles.input}
         />
-        <div style={styles.searchIcon}>🔍</div>
-      </div>
+        <IconButton
+          onClick={() => {
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (position) => {
+                  onLocationSelect({
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                  });
+                },
+                (error) => {
+                  console.error('Error getting location:', error);
+                  alert('Unable to retrieve your location');
+                }
+              );
+            } else {
+              alert('Geolocation is not supported by your browser');
+            }
+          }}
+          sx={styles.locateButton}
+        >
+          <MyLocationIcon />
+        </IconButton>
+      </Paper>
     </div>
   );
 }
 
 const styles = {
   container: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
     position: 'absolute',
-    top: '20px',
+    top: '80px',
     left: '50%',
     transform: 'translateX(-50%)',
     width: '90%',
-    maxWidth: '400px',
-    zIndex: 1,
-    padding: '0 16px',
+    maxWidth: '600px',
+    p: '2px 4px',
+    backgroundColor: colors.background.paper,
+    zIndex: 999,
+    border: `1px solid ${colors.border}`,
+    '&:hover': {
+      border: `1px solid ${colors.primary.main}`,
+    },
   },
-  searchContainer: {
+  searchBar: {
     position: 'relative',
     width: '100%',
   },
@@ -119,6 +132,18 @@ const styles = {
     fontSize: '18px',
     color: colors.text.secondary,
     pointerEvents: 'none',
+  },
+  locateButton: {
+    position: 'absolute',
+    right: '-48px', // Position it to the right of the search bar
+    top: '50%',
+    transform: 'translateY(-50%)',
+    backgroundColor: colors.background.paper,
+    color: colors.primary.main,
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    '&:hover': {
+      backgroundColor: colors.background.overlay,
+    }
   }
 };
 

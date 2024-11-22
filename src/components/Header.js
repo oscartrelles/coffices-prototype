@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import colors from '../styles/colors';
@@ -13,21 +13,28 @@ function Header({ user, onSignInClick }) {
     }
   };
 
+  const displayName = useMemo(() => {
+    if (user?.name) {
+      return user.name;
+    }
+    if (user?.email) {
+      return user.email.split('@')[0];  // Get the part before @
+    }
+    return 'Guest';
+  }, [user?.name, user?.email]);
+
   return (
     <header style={styles.header}>
       <div style={styles.leftSection}>
-        <h1 style={styles.title}>Coffice</h1>
+        <h1 style={styles.title}>Find the Perfect Coffice!</h1>
         <div style={styles.greeting}>
-          Find the Best Coffice!
         </div>
       </div>
       <div style={styles.rightSection}>
         {user && (
           <div style={styles.userInfo}>
             <span style={styles.dot} />
-            <span style={styles.userName}>
-              {user.displayName || user.email}
-            </span>
+            <span style={styles.userName}>Welcome back, {displayName}</span>
           </div>
         )}
         <button

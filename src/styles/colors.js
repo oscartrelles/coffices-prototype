@@ -18,6 +18,7 @@ const colors = {
     primary: '#2C3E35',    // Dark sage for primary text
     secondary: '#5F7268',  // Medium sage for secondary text
     disabled: '#A8B8B0',   // Light sage for disabled text
+    white: '#FFFFFF',
   },
   
   // UI elements

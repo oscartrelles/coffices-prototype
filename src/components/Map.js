@@ -1,23 +1,23 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import SearchBar from './SearchBar';
-import { MarkerClusterer, SuperClusterAlgorithm } from '@googlemaps/markerclusterer';
-import colors from '../styles/colors';
-import { signOut } from 'firebase/auth';
-import { auth } from '../firebaseConfig';
-import Header from './Header';
-import RatingForm from '../RatingForm';
-import { doc, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { Box } from '@mui/material';
+import PlaceDetails from './PlaceDetails';
+import { doc, getDoc, query, setDoc, collection, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import colors from '../styles/colors';
+import { debounce } from 'lodash';
+import { calculateDistance } from '../utils/distance';
+import PropTypes from 'prop-types';
 
 const DEFAULT_LOCATION = { lat: 36.7213028, lng: -4.4216366 }; // Málaga
-const DEFAULT_ZOOM = 14;
+const DEFAULT_ZOOM = 15;
 const SEARCH_RADIUS = 1500; // meters
 
-function Map({ user, onSignInClick }) {
-  const DEFAULT_LOCATION = {
-    lat: 36.7213028,
-    lng: -4.4216366
-  };
+function Map({ user, onSignInClick, selectedLocation }) {
+  console.log('Map component rendering');
+
+  // Add isInitialLoad state at the top with other state declarations
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [locationReady, setLocationReady] = useState(false);
 
   // Define marker styles
   const markerStyles = {
@@ -36,6 +36,24 @@ function Map({ user, onSignInClick }) {
       scale: 12,
       strokeColor: colors.background.paper,
       strokeWeight: 3,
+    },
+    rated: {
+      path: 'M 10,1.2 12.5,6.9 18,7.3 14,11.2 15,16.2 10,13.9 5,16.2 6,11.2 2,7.3 7.5,6.9 z',
+      fillColor: colors.primary.main,
+      fillOpacity: 0.9,
+      scale: 1.5,
+      strokeColor: colors.background.paper,
+      strokeWeight: 1,
+      anchor: new window.google.maps.Point(10, 10)
+    },
+    ratedSelected: {
+      path: 'M 10,1.2 12.5,6.9 18,7.3 14,11.2 15,16.2 10,13.9 5,16.2 6,11.2 2,7.3 7.5,6.9 z',
+      fillColor: colors.primary.dark,
+      fillOpacity: 1,
+      scale: 2,
+      strokeColor: colors.background.paper,
+      strokeWeight: 1.5,
+      anchor: new window.google.maps.Point(10, 10)
     }
   };
 
@@ -77,7 +95,7 @@ function Map({ user, onSignInClick }) {
 
   const [mapInstance, setMapInstance] = useState(null);
   const [selectedShop, setSelectedShop] = useState(null);
-  const [selectedMarker, setSelectedMarker] = useState(null);
+  const [selectedMarkerId, setSelectedMarkerId] = useState(null);
   const [coffeeShops, setCoffeeShops] = useState([]);
   const [currentLocation, setCurrentLocation] = useState(DEFAULT_LOCATION);
   const [showRatingForm, setShowRatingForm] = useState(false);
@@ -91,23 +109,49 @@ function Map({ user, onSignInClick }) {
   // Add state for showing comments
   const [showComments, setShowComments] = useState(false);
 
+  // Add zoom state
+  const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM);
+
+  // Add these state declarations with your other existing state
+  const [mapCenter, setMapCenter] = useState(null);
+  const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);  // Default zoom level
+
+  // Define a unified search configuration
+  const getPlacesRequest = (location) => ({
+    location: location,
+    radius: SEARCH_RADIUS,
+    type: ['cafe', 'restaurant', 'bar', 'bakery', 'food'],  // Cast a wider net for establishment types
+    keyword: 'coffee cafe wifi laptop',  // Expanded workspace-related terms
+    rankBy: window.google.maps.places.RankBy.RATING,
+    // Note: Using both radius and rankBy together ensures we get more results
+    // while still prioritizing highly-rated places within our search area
+  });
+
   // Add a function to handle marker selection
   const handleMarkerClick = useCallback((marker, shop) => {
     console.log('Marker clicked:', shop.name);
     
-    // Reset previous selected marker if exists
-    if (selectedMarker) {
-      selectedMarker.setIcon(markerStyles.default);
-    }
+    // Reset all markers to their default style
+    Object.values(markersRef.current).forEach(m => {
+      if (m !== marker) {
+        m.setIcon(m.hasRatings ? markerStyles.rated : markerStyles.default);
+      }
+    });
 
     // Update new selected marker
-    marker.setIcon(markerStyles.selected);
-    setSelectedMarker(marker);
+    marker.setIcon(marker.hasRatings ? markerStyles.ratedSelected : markerStyles.selected);
     setSelectedShop(shop);
-  }, [selectedMarker, markerStyles]);
+  }, [markerStyles]);
 
-  // Update the markers creation
-  const updateMarkers = useCallback(() => {
+  // Add function to check if place has ratings
+  const checkPlaceRatings = useCallback(async (placeId) => {
+    const q = query(collection(db, 'ratings'), where('placeId', '==', placeId));
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty;
+  }, []);
+
+  // Update updateMarkers to handle rated places
+  const updateMarkers = useCallback(async () => {
     if (!mapInstance || !coffeeShops.length) {
       console.log('Cannot create markers:', { hasMap: !!mapInstance, shopCount: coffeeShops.length });
       return;
@@ -115,66 +159,61 @@ function Map({ user, onSignInClick }) {
 
     console.log('Updating markers for', coffeeShops.length, 'shops');
     
-    const bounds = new window.google.maps.LatLngBounds();
-    
-    // Clear existing markers only if they're different shops
-    if (Object.keys(markersRef.current).length !== coffeeShops.length) {
-      Object.values(markersRef.current).forEach(marker => {
+    // Clear old markers
+    Object.entries(markersRef.current).forEach(([placeId, marker]) => {
+      if (!coffeeShops.find(shop => shop.place_id === placeId)) {
         marker.setMap(null);
-      });
-      markersRef.current = {};
-    }
+        delete markersRef.current[placeId];
+      }
+    });
     
-    coffeeShops.forEach(shop => {
-      // Only create marker if it doesn't exist
-      if (!markersRef.current[shop.place_id]) {
+    // Create or update markers
+    for (const shop of coffeeShops) {
+      const existingMarker = markersRef.current[shop.place_id];
+      if (!existingMarker) {
+        // Check if place has ratings
+        const hasRatings = await checkPlaceRatings(shop.place_id);
+        
         const marker = new window.google.maps.Marker({
           position: shop.geometry.location,
           map: mapInstance,
           title: shop.name,
           animation: window.google.maps.Animation.DROP,
-          icon: shop.place_id === selectedShop?.place_id ? 
-            markerStyles.selected : markerStyles.default
+          icon: hasRatings ? 
+            (shop.place_id === selectedShop?.place_id ? markerStyles.ratedSelected : markerStyles.rated) :
+            (shop.place_id === selectedShop?.place_id ? markerStyles.selected : markerStyles.default),
+          placeData: shop,
+          hasRatings: hasRatings
         });
 
         marker.addListener('click', () => handleMarkerClick(marker, shop));
-        bounds.extend(shop.geometry.location);
         markersRef.current[shop.place_id] = marker;
       }
-    });
-
-    if (coffeeShops.length > 1 && !selectedShop) {
-      mapInstance.fitBounds(bounds);
     }
-  }, [mapInstance, coffeeShops, selectedShop, handleMarkerClick, markerStyles]);
+  }, [mapInstance, coffeeShops, selectedShop, handleMarkerClick, markerStyles, checkPlaceRatings]);
 
-  // Add effect to update marker icons when selection changes
-  useEffect(() => {
-    Object.entries(markersRef.current).forEach(([placeId, marker]) => {
-      marker.setIcon(
-        placeId === selectedShop?.place_id ? 
-          markerStyles.selected : markerStyles.default
-      );
-    });
-  }, [selectedShop, markerStyles]);
+  // Then define searchNearby
+  const [lastSearchLocation, setLastSearchLocation] = useState(null);
 
-  // 2. Then declare searchNearby
   const searchNearby = useCallback(async (location) => {
     if (!mapInstance) return;
 
+    console.log('Starting nearby search at:', location);
+    setLastSearchLocation(location);
+
+    const currentZoom = mapInstance.getZoom();
+    const radius = getSearchRadius(currentZoom);
+
     try {
-      console.log('Searching nearby location:', location);
       const service = new window.google.maps.places.PlacesService(mapInstance);
       
-      const request = {
-        location: location,
-        radius: 1500,
-        type: ['cafe']
-      };
+      const request = getPlacesRequest(location);
+
+      console.log('Search request:', request);
 
       service.nearbySearch(request, (results, status) => {
         if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-          console.log('Found coffee shops:', results.length);
+          console.log('Found nearby coffee shops:', results.length);
           setCoffeeShops(results);
         } else {
           console.error('Places search failed:', status);
@@ -183,157 +222,98 @@ function Map({ user, onSignInClick }) {
     } catch (error) {
       console.error('Error in searchNearby:', error);
     }
-  }, [mapInstance]);
+  }, [mapInstance, setLastSearchLocation]);
 
-  // Separate effect for updating markers
+  // Then define debouncedSearch
+  const debouncedSearch = useCallback(
+    debounce((location) => {
+      console.log('Debounced search triggered at:', location);
+      searchNearby(location);
+    }, 1000),
+    [searchNearby]
+  );
+
+  // Add effect to update markers when coffee shops change
   useEffect(() => {
     if (coffeeShops.length > 0) {
       updateMarkers();
     }
   }, [coffeeShops, updateMarkers]);
 
-  // 3. Then declare handleLocationSelect
-  const handleLocationSelect = useCallback((place) => {
-    if (!mapInstance) return;
-
-    console.log('Location selected:', place);
-    
-    // If we receive a place object (from SearchBar)
-    if (place.geometry) {
-      const newLocation = {
-        lat: place.geometry.location.lat(),
-        lng: place.geometry.location.lng()
-      };
-      setCurrentLocation(newLocation);
-      mapInstance.setCenter(newLocation);
-      mapInstance.setZoom(15);
-      searchNearby(newLocation);
-    } 
-    // If we receive a location object (from current location)
-    else {
-      setCurrentLocation(place);
-      mapInstance.setCenter(place);
-      mapInstance.setZoom(15);
-      searchNearby(place);
-    }
-  }, [mapInstance, searchNearby]);
-
-  // Initial map setup effect
-  useEffect(() => {
-    if (!mapRef.current || !window.google) return;
-
-    console.log('Initializing map');
-    const map = new window.google.maps.Map(mapRef.current, {
-      center: currentLocation,
-      zoom: 15,
-      styles: mapStyles,
-      disableDefaultUI: true,
-      clickableIcons: false,
-      gestureHandling: 'greedy',
-      zoomControl: true,
-      zoomControlOptions: {
-        position: window.google.maps.ControlPosition.RIGHT_CENTER
-      },
-      mapTypeControl: false,
-      scaleControl: false,
-      streetViewControl: false,
-      rotateControl: false,
-      fullscreenControl: false
-    });
-
-    setMapInstance(map);
-
-    // Only get geolocation if we're at the default location
-    if (currentLocation === DEFAULT_LOCATION && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const userLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          console.log('Got user location:', userLocation);
-          setCurrentLocation(userLocation);
-          map.setCenter(userLocation);
-          // Search nearby after getting user location
-          const service = new window.google.maps.places.PlacesService(map);
-          const request = {
-            location: userLocation,
-            radius: 1500,
-            type: ['cafe']
-          };
-          service.nearbySearch(request, (results, status) => {
-            if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-              console.log('Found initial coffee shops:', results.length);
-              setCoffeeShops(results);
-            }
-          });
-        },
-        (error) => {
-          console.log('Geolocation error:', error);
-          // If geolocation fails, search at default location
-          const service = new window.google.maps.places.PlacesService(map);
-          const request = {
-            location: DEFAULT_LOCATION,
-            radius: 1500,
-            type: ['cafe']
-          };
-          service.nearbySearch(request, (results, status) => {
-            if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-              console.log('Found initial coffee shops:', results.length);
-              setCoffeeShops(results);
-            }
-          });
-        }
-      );
-    } else {
-      // If not at default location, search at current location
-      const service = new window.google.maps.places.PlacesService(map);
-      const request = {
-        location: currentLocation,
-        radius: 1500,
-        type: ['cafe']
-      };
-      service.nearbySearch(request, (results, status) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-          console.log('Found initial coffee shops:', results.length);
-          setCoffeeShops(results);
-        }
-      });
-    }
+  // First define getSearchRadius
+  const getSearchRadius = useCallback((zoom) => {
+    // Adjust radius based on zoom level
+    // At zoom level 13, radius is 2000m
+    // Each zoom level doubles/halves the radius
+    const baseRadius = 2000;
+    const baseZoom = 13;
+    const zoomDiff = zoom - baseZoom;
+    return baseRadius * Math.pow(0.5, zoomDiff);
   }, []);
 
-  // Add idle listener to search when map stops moving
+  // Then define handleMapIdle
+  const handleMapIdle = useCallback(() => {
+    if (isInitialLoad) {
+      console.log('Skipping initial idle event');
+      setIsInitialLoad(false);
+      return;
+    }
+
+    const center = mapInstance?.getCenter();
+    if (!center) return;
+
+    const newLocation = {
+      lat: center.lat(),
+      lng: center.lng()
+    };
+
+    // Skip if this is our first search
+    if (!lastSearchLocation) {
+      setLastSearchLocation(newLocation);
+      return;
+    }
+
+    // Calculate distance from last search
+    const distance = calculateDistance(lastSearchLocation, newLocation);
+    const searchRadius = getSearchRadius(mapInstance.getZoom());
+    
+    console.log('Distance moved:', Math.round(distance), 'm, Search radius:', searchRadius, 'm');
+
+    // Only search if we've moved more than half the search radius
+    if (distance > searchRadius / 2) {
+      console.log('Moved significant distance, searching new area');
+      debouncedSearch(newLocation);
+    } else {
+      console.log('Movement too small, skipping search');
+    }
+  }, [mapInstance, isInitialLoad, lastSearchLocation, debouncedSearch, getSearchRadius, setLastSearchLocation]);
+
+  // Then the map idle listener effect
   useEffect(() => {
     if (!mapInstance) return;
 
-    const handleIdle = () => {
-      const center = mapInstance.getCenter();
-      if (!center) return;
-
-      const newLocation = {
-        lat: center.lat(),
-        lng: center.lng()
-      };
-
-      // Only search if we've moved significantly from the last search
-      if (currentLocation && (
-        Math.abs(currentLocation.lat - newLocation.lat) > 0.01 ||
-        Math.abs(currentLocation.lng - newLocation.lng) > 0.01
-      )) {
-        console.log('Map idle at new location:', newLocation);
-        setCurrentLocation(newLocation);
-        searchNearby(newLocation);
-      }
-    };
-
-    const idleListener = mapInstance.addListener('idle', handleIdle);
+    console.log('Setting up map idle listener');
+    const idleListener = mapInstance.addListener('idle', handleMapIdle);
 
     return () => {
       if (idleListener) {
         window.google.maps.event.removeListener(idleListener);
       }
+      debouncedSearch.cancel();
     };
-  }, [mapInstance, currentLocation, searchNearby]);
+  }, [mapInstance, handleMapIdle, debouncedSearch]);
+
+  // 3. Then declare handleLocationSelect
+  const handleLocationSelect = (location) => {
+    console.log('Received new location:', location);
+    
+    if (mapInstance && location.lat && location.lng) {
+      const newCenter = new window.google.maps.LatLng(location.lat, location.lng);
+      console.log('Setting new map center:', newCenter.toString());
+      mapInstance.setCenter(newCenter);
+      mapInstance.setZoom(13);
+    }
+  };
 
   // Update rating handling for multiple categories
   const handleRating = useCallback(async (ratings) => {
@@ -341,9 +321,8 @@ function Map({ user, onSignInClick }) {
 
     try {
       const ratingRef = doc(db, 'ratings', `${selectedShop.place_id}_${user.uid}`);
-      const shopRef = doc(db, 'shops', selectedShop.place_id);
 
-      // Save individual rating with all categories
+      // Save rating with all categories
       await setDoc(ratingRef, {
         userId: user.uid,
         placeId: selectedShop.place_id,
@@ -351,62 +330,60 @@ function Map({ user, onSignInClick }) {
         timestamp: new Date().toISOString()
       });
 
-      // Get existing shop data
-      const shopDoc = await getDoc(shopRef);
-      const shopData = shopDoc.exists() ? shopDoc.data() : {
-        totalRatings: 0,
-        averageRatings: {
-          wifi: 0,
-          power: 0,
-          noise: 0,
-          coffee: 0
-        },
-        name: selectedShop.name,
-        address: selectedShop.vicinity,
-        location: {
-          lat: selectedShop.geometry.location.lat(),
-          lng: selectedShop.geometry.location.lng()
-        }
-      };
-
-      // Calculate new averages for each category
-      const newTotal = shopData.totalRatings + 1;
-      const newAverages = {};
-      
-      ['wifi', 'power', 'noise', 'coffee'].forEach(category => {
-        newAverages[category] = (
-          (shopData.averageRatings[category] * shopData.totalRatings) + ratings[category]
-        ) / newTotal;
-      });
-
-      // Save updated shop data
-      await setDoc(shopRef, {
-        ...shopData,
-        totalRatings: newTotal,
-        averageRatings: newAverages,
-        lastUpdated: new Date().toISOString()
-      });
-
-      console.log('Ratings saved successfully');
+      console.log('Rating saved successfully');
       setShowRatingForm(false);
     } catch (error) {
-      console.error('Error saving ratings:', error);
+      console.error('Error saving rating:', error);
     }
   }, [user, selectedShop]);
 
-  // Add function to fetch ratings
+  // Update fetchCofficeRatings to work with ratings collection
   const fetchCofficeRatings = useCallback(async (placeId) => {
     try {
-      const shopRef = doc(db, 'shops', placeId);
-      const shopDoc = await getDoc(shopRef);
+      console.log('Fetching ratings for place:', placeId);
+      const q = query(collection(db, 'ratings'), where('placeId', '==', placeId));
+      const querySnapshot = await getDocs(q);
       
-      if (shopDoc.exists()) {
-        setCofficeRatings(shopDoc.data());
+      if (!querySnapshot.empty) {
+        const ratings = querySnapshot.docs.map(doc => doc.data());
+        console.log('Raw ratings from DB:', ratings);
+        
+        // Initialize counters for each category
+        const totals = {
+          wifi: { sum: 0, count: 0 },
+          power: { sum: 0, count: 0 },
+          noise: { sum: 0, count: 0 },
+          coffee: { sum: 0, count: 0 }
+        };
+        
+        // Sum up ratings for each category
+        ratings.forEach(rating => {
+          ['wifi', 'power', 'noise', 'coffee'].forEach(key => {
+            if (typeof rating[key] === 'number') {
+              totals[key].sum += rating[key];
+              totals[key].count++;
+            }
+          });
+        });
+        
+        // Calculate averages
+        const finalAverages = {};
+        Object.keys(totals).forEach(key => {
+          finalAverages[key] = totals[key].count > 0 ? 
+            totals[key].sum / totals[key].count : 0;
+        });
+
+        console.log('Final calculated averages:', finalAverages);
+        
+        setCofficeRatings({
+          averageRatings: finalAverages,
+          totalRatings: ratings.length
+        });
       } else {
         setCofficeRatings(null);
       }
     } catch (error) {
-      console.error('Error fetching coffice ratings:', error);
+      console.error('Error fetching ratings:', error);
       setCofficeRatings(null);
     }
   }, []);
@@ -448,105 +425,151 @@ function Map({ user, onSignInClick }) {
     }
   }, [selectedShop, user, fetchUserRating]);
 
+  // Update the initial map setup effect
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    console.log('Map initialization starting');
+
+    // Get user location first, then initialize map
+    if (navigator.geolocation) {
+      console.log('Requesting user location...');
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          console.log('Got user location:', userLocation);
+          setCurrentLocation(userLocation);
+          
+          // Initialize map with user location
+          const map = new window.google.maps.Map(mapRef.current, {
+            center: userLocation,  // Use user location as center
+            zoom: 15,
+            minZoom: 11,
+            maxZoom: 17,
+            styles: mapStyles,
+            disableDefaultUI: true,
+            clickableIcons: false,
+            gestureHandling: 'greedy',
+            zoomControl: true,
+            zoomControlOptions: {
+              position: window.google.maps.ControlPosition.RIGHT_CENTER
+            },
+            mapTypeControl: false,
+            scaleControl: false,
+            streetViewControl: false,
+            rotateControl: false,
+            fullscreenControl: false
+          });
+
+          setMapInstance(map);
+          searchNearby(userLocation);
+        },
+        (error) => {
+          console.log('Geolocation error:', error);
+          // Fall back to default location only if geolocation fails
+          const map = new window.google.maps.Map(mapRef.current, {
+            center: DEFAULT_LOCATION,
+            zoom: 15,
+            // ... other map options ...
+          });
+
+          setMapInstance(map);
+          searchNearby(DEFAULT_LOCATION);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0
+        }
+      );
+    } else {
+      // Browser doesn't support geolocation, use default location
+      console.log('Geolocation not supported, using default location');
+      const map = new window.google.maps.Map(mapRef.current, {
+        center: DEFAULT_LOCATION,
+        zoom: 15,
+        // ... other map options ...
+      });
+
+      setMapInstance(map);
+      searchNearby(DEFAULT_LOCATION);
+    }
+  }, []); // Empty dependency array since this should only run once
+
+
+  // Update handleClose function
+  const handleClose = useCallback(() => {
+    console.log('Closing details pane');
+    setSelectedShop(null);  // This should hide the bottom pane
+    
+    // Reset all markers to their default style
+    Object.values(markersRef.current).forEach(marker => {
+      marker.setIcon(marker.hasRatings ? markerStyles.rated : markerStyles.default);
+    });
+  }, [markerStyles]);
+
+  // Update the selectedLocation effect
+  useEffect(() => {
+    if (selectedLocation && mapInstance) {
+      console.log('Setting new location from props:', selectedLocation);
+      const newCenter = new window.google.maps.LatLng(
+        selectedLocation.lat,
+        selectedLocation.lng
+      );
+      
+      // Update map center and zoom
+      mapInstance.setCenter(newCenter);
+      mapInstance.setZoom(15);
+      
+      // Update current location state
+      setCurrentLocation({
+        lat: selectedLocation.lat,
+        lng: selectedLocation.lng
+      });
+      
+      // Trigger a new search at this location
+      searchNearby({
+        lat: selectedLocation.lat,
+        lng: selectedLocation.lng
+      });
+    }
+  }, [selectedLocation, mapInstance]);
+
   // Add this return statement at the end of the Map component
   return (
-    <div style={styles.container}>
-      <Header user={user} onSignInClick={onSignInClick} />
-      <div style={styles.mapContainer}>
-        <SearchBar onLocationSelect={handleLocationSelect} />
-        <div ref={mapRef} style={styles.map} />
-      </div>
-      
+    <Box sx={{ position: 'relative', height: '100%' }}>
+      <Box 
+        ref={mapRef} 
+        sx={{ 
+          height: '100%',
+          width: '100%'
+        }} 
+      />
+
       {selectedShop && (
-        <div style={styles.infoPanel}>
-          <div style={styles.infoPanelHandle} />
-          <button 
-            style={styles.closeButton}
-            onClick={() => {
-              setSelectedShop(null);
-              setShowRatingForm(false);
-              setCofficeRatings(null);
-              if (selectedMarker) {
-                selectedMarker.setIcon(markerStyles.default);
-                setSelectedMarker(null);
-              }
-            }}
-          >
-            ×
-          </button>
-          <h3 style={styles.title}>{selectedShop.name}</h3>
-          <p style={styles.address}>{selectedShop.vicinity}</p>
-          
-          {/* Ratings Display */}
-          <div style={styles.ratingsContainer}>
-            {cofficeRatings && cofficeRatings.totalRatings > 0 ? (
-              <div style={styles.ratingSection}>
-                <h4 style={styles.ratingTitle}>Coffice Rating</h4>
-                <div style={styles.cofficeRatings}>
-                  <p style={styles.ratingItem}>
-                    📶 WiFi: {cofficeRatings.averageRatings.wifi.toFixed(1)}
-                  </p>
-                  <p style={styles.ratingItem}>
-                    🔌 Power: {cofficeRatings.averageRatings.power.toFixed(1)}
-                  </p>
-                  <p style={styles.ratingItem}>
-                    🔊 Noise: {cofficeRatings.averageRatings.noise.toFixed(1)}
-                  </p>
-                  <p style={styles.ratingItem}>
-                    ☕️ Coffee: {cofficeRatings.averageRatings.coffee.toFixed(1)}
-                  </p>
-                  <p style={styles.totalRatings}>
-                    Based on {cofficeRatings.totalRatings} {cofficeRatings.totalRatings === 1 ? 'rating' : 'ratings'}
-                  </p>
-                  
-                  {/* Comments Button */}
-                  {cofficeRatings.totalRatings > 0 && (
-                    <button
-                      onClick={() => user ? setShowComments(!showComments) : onSignInClick()}
-                      style={styles.commentsButton}
-                    >
-                      {user ? (showComments ? 'Hide Comments' : 'Show Comments') : 'Sign in to see comments'}
-                    </button>
-                  )}
-                  
-                  {/* Comments Section */}
-                  {user && showComments && (
-                    <div style={styles.commentsSection}>
-                      {/* We'll need to fetch and display comments here */}
-                      {/* This will be implemented in the next iteration */}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : selectedShop.rating ? (
-              <div style={styles.ratingSection}>
-                <h4 style={styles.ratingTitle}>Google Rating</h4>
-                <p style={styles.rating}>
-                  ⭐️ {selectedShop.rating.toFixed(1)} ({selectedShop.user_ratings_total})
-                </p>
-              </div>
-            ) : null}
-          </div>
-          
-          {/* Rate Button or Rating Form */}
-          {!userRating && !showRatingForm && (
-            <button
-              onClick={() => user ? setShowRatingForm(true) : onSignInClick()}
-              style={styles.rateButton}
-            >
-              {user ? 'Rate this Coffice' : 'Sign in to rate'}
-            </button>
-          )}
-          
-          {showRatingForm && (
-            <RatingForm
-              onSubmit={handleRating}
-              onCancel={() => setShowRatingForm(false)}
-            />
-          )}
-        </div>
+        <Box sx={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: colors.background.paper,
+          padding: '0px',
+          zIndex: 1000
+        }}>
+          <PlaceDetails 
+            place={selectedShop} 
+            userLocation={currentLocation}
+            user={user}
+            onSignInRequired={onSignInClick}
+            cofficeRatings={cofficeRatings}
+            onClose={handleClose}
+          />
+        </Box>
       )}
-    </div>
+    </Box>
   );
 }
 
@@ -740,4 +763,9 @@ const styles = {
   }
 };
 
-export default Map; 
+// Wrap Map with React.memo and a custom comparison function
+export default React.memo(Map, (prevProps, nextProps) => {
+  // Only re-render if user auth state changes
+  return prevProps.user?.uid === nextProps.user?.uid &&
+         prevProps.onSignInClick === nextProps.onSignInClick;
+}); 
