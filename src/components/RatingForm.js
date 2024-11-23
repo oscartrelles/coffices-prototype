@@ -64,44 +64,48 @@ function RatingForm({ placeId, userId, onSubmit, onCancel }) {
   return (
     <Box component="form" onSubmit={handleSubmit} sx={styles.form}>
       <Stack spacing={2}>
-        <Stack direction="row" spacing={2} sx={styles.ratingsContainer}>
-          <Stack spacing={1} alignItems="center">
+        <Stack direction="row" spacing={0.5} sx={styles.ratingsContainer}>
+          <Stack spacing={0.5} alignItems="center">
             <Typography variant="body2" sx={styles.label}>WiFi</Typography>
             <Rating
               name="wifi"
               value={ratings.wifi}
               onChange={(e, value) => setRatings(prev => ({ ...prev, wifi: value }))}
               size="small"
+              sx={styles.rating}
             />
           </Stack>
 
-          <Stack spacing={1} alignItems="center">
+          <Stack spacing={0.5} alignItems="center">
             <Typography variant="body2" sx={styles.label}>Power</Typography>
             <Rating
               name="power"
               value={ratings.power}
               onChange={(e, value) => setRatings(prev => ({ ...prev, power: value }))}
               size="small"
+              sx={styles.rating}
             />
           </Stack>
 
-          <Stack spacing={1} alignItems="center">
+          <Stack spacing={0.5} alignItems="center">
             <Typography variant="body2" sx={styles.label}>Noise</Typography>
             <Rating
               name="noise"
               value={ratings.noise}
               onChange={(e, value) => setRatings(prev => ({ ...prev, noise: value }))}
               size="small"
+              sx={styles.rating}
             />
           </Stack>
 
-          <Stack spacing={1} alignItems="center">
+          <Stack spacing={0.5} alignItems="center">
             <Typography variant="body2" sx={styles.label}>Coffee</Typography>
             <Rating
               name="coffee"
               value={ratings.coffee}
               onChange={(e, value) => setRatings(prev => ({ ...prev, coffee: value }))}
               size="small"
+              sx={styles.rating}
             />
           </Stack>
         </Stack>
@@ -151,10 +155,13 @@ const styles = {
   },
   ratingsContainer: {
     justifyContent: 'space-between',
+    px: 0.5,
+    width: '100%',
   },
   label: {
     color: colors.text.secondary,
-    fontSize: '0.875rem',
+    fontSize: '0.75rem',
+    whiteSpace: 'nowrap',
   },
   comment: {
     '& .MuiOutlinedInput-root': {
@@ -188,6 +195,11 @@ const styles = {
     '&:hover': {
       backgroundColor: colors.primary.dark,
     },
+  },
+  rating: {
+    '& .MuiRating-icon': {
+      marginRight: '-2px',
+    }
   },
 };
 

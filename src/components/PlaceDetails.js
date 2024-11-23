@@ -10,6 +10,10 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import colors from '../styles/colors';
 import RatingForm from './RatingForm';
+import WifiIcon from '@mui/icons-material/Wifi';
+import PowerIcon from '@mui/icons-material/Power';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+import CoffeeIcon from '@mui/icons-material/Coffee';
 
 function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRatings, onClose }) {
   const [showRatingForm, setShowRatingForm] = useState(false);
@@ -103,23 +107,27 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
           {cofficeRatings?.averageRatings ? (
             <>
               <div style={styles.ratingCategory}>
-                <span>WiFi</span>
-                <StarIcon style={styles.starIcon} />
+                <Tooltip title="WiFi" arrow>
+                  <WifiIcon style={styles.categoryIcon} />
+                </Tooltip>
                 <span>{cofficeRatings.averageRatings.wifi?.toFixed(1)}</span>
               </div>
               <div style={styles.ratingCategory}>
-                <span>Outlets</span>
-                <StarIcon style={styles.starIcon} />
+                <Tooltip title="Power Outlets" arrow>
+                  <PowerIcon style={styles.categoryIcon} />
+                </Tooltip>
                 <span>{cofficeRatings.averageRatings.power?.toFixed(1)}</span>
               </div>
               <div style={styles.ratingCategory}>
-                <span>Noise</span>
-                <StarIcon style={styles.starIcon} />
+                <Tooltip title="Noise Level" arrow>
+                  <VolumeUpIcon style={styles.categoryIcon} />
+                </Tooltip>
                 <span>{cofficeRatings.averageRatings.noise?.toFixed(1)}</span>
               </div>
               <div style={styles.ratingCategory}>
-                <span>Coffee</span>
-                <StarIcon style={styles.starIcon} />
+                <Tooltip title="Coffee Quality" arrow>
+                  <CoffeeIcon style={styles.categoryIcon} />
+                </Tooltip>
                 <span>{cofficeRatings.averageRatings.coffee?.toFixed(1)}</span>
               </div>
               <span style={styles.ratingCount}>
@@ -139,14 +147,14 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
         <div style={styles.address}>
           <LocationOnIcon style={styles.locationIcon} />
           <span>{place.vicinity}</span>
+          {distance && (
+            <>
+              <span style={styles.separator}>•</span>
+              <DirectionsWalkIcon style={styles.walkIcon} />
+              <span>{(distance / 1000).toFixed(1)} km</span>
+            </>
+          )}
         </div>
-
-        {distance && (
-          <div style={styles.distance}>
-            <DirectionsWalkIcon style={styles.walkIcon} />
-            <span>{(distance / 1000).toFixed(1)} km</span>
-          </div>
-        )}
       </div>
 
       {!user ? (
@@ -183,11 +191,11 @@ const styles = {
   container: {
     padding: '12px',
     backgroundColor: colors.background.paper,
-    borderRadius: '4px',
-    border: `1px solid ${colors.border}`,
-    maxHeight: 'calc(80vh - 40px)',
+    borderTop: `1px solid ${colors.border}`,
+    maxHeight: 'calc(100vh - 120px)',
     overflowY: 'auto',
-    paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
+    paddingBottom: 'calc(60px + env(safe-area-inset-bottom))',
+    marginBottom: '0',
   },
   details: {
     display: 'flex',
@@ -213,16 +221,15 @@ const styles = {
     gap: '4px',
     color: colors.text.secondary,
     fontSize: '0.9rem',
+    marginTop: '2px',
     marginBottom: '8px',
   },
-  distance: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    color: colors.text.secondary,
+  separator: {
+    margin: '0 4px',
+    color: colors.text.disabled,
   },
   starIcon: {
-    color: colors.status.warning,
+    color: colors.text.secondary,
     fontSize: '20px',
   },
   locationIcon: {
@@ -237,12 +244,17 @@ const styles = {
     color: colors.text.disabled,
   },
   rateButton: {
-    marginTop: '16px',
+    marginTop: '8px',
+    marginBottom: '8px',
     backgroundColor: colors.primary.main,
     color: colors.background.paper,
     '&:hover': {
       backgroundColor: colors.primary.dark,
     }
+  },
+  categoryIcon: {
+    fontSize: '20px',
+    color: colors.text.secondary,
   },
 };
 
