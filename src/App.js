@@ -18,6 +18,7 @@ function App() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [map, setMap] = useState(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -40,17 +41,20 @@ function App() {
     setShowAuthModal(false);
   };
 
-  const handleLocationSelect = (place) => {
+  const handleLocationSelect = (place, map) => {
     console.log('Location selected in App:', place);
-    if (place.geometry) {
-      const location = {
-        lat: place.geometry.location.lat(),
-        lng: place.geometry.location.lng(),
-        name: place.name,
-        formatted_address: place.formatted_address
-      };
-      setSelectedLocation(location);
-    }
+    
+    const location = place.geometry ? {
+      lat: place.geometry.location.lat(),
+      lng: place.geometry.location.lng(),
+      name: place.name,
+      formatted_address: place.formatted_address
+    } : {
+      lat: place.lat,
+      lng: place.lng
+    };
+
+    setSelectedLocation(location);
   };
 
   const handleMapLoaded = useCallback((loaded) => {
@@ -88,6 +92,7 @@ function App() {
           <SearchBar 
             onLocationSelect={handleLocationSelect}
             isMapLoaded={isMapLoaded}
+            map={map}
           />
         </Box>
         
@@ -96,6 +101,7 @@ function App() {
             user={user} 
             onSignInClick={handleSignInClick} 
             selectedLocation={selectedLocation}
+            onMapInstance={(mapInstance) => setMap(mapInstance)}
           />
         </MapLoader>
         

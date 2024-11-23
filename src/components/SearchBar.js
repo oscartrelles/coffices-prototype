@@ -4,7 +4,7 @@ import colors from '../styles/colors';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 import { Paper, InputBase, IconButton } from '@mui/material';
 
-function SearchBar({ onLocationSelect, isMapLoaded }) {
+function SearchBar({ onLocationSelect, isMapLoaded, map }) {
   const [searchInput, setSearchInput] = useState('');
   const autocompleteRef = useRef(null);
   const navigate = useNavigate();
@@ -43,6 +43,31 @@ function SearchBar({ onLocationSelect, isMapLoaded }) {
     };
   }, [isMapLoaded, onLocationSelect]);
 
+  const handleLocationClick = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const userLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          
+          onLocationSelect(userLocation, map);
+          
+          if (map) {
+            map.panTo(userLocation);
+          }
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+          alert('Unable to retrieve your location');
+        }
+      );
+    } else {
+      alert('Geolocation is not supported by your browser');
+    }
+  };
+
   return (
     <div style={styles.container}>
       <Paper component="form" sx={styles.searchBar} elevation={3}>
@@ -55,24 +80,7 @@ function SearchBar({ onLocationSelect, isMapLoaded }) {
           style={styles.input}
         />
         <IconButton
-          onClick={() => {
-            if (navigator.geolocation) {
-              navigator.geolocation.getCurrentPosition(
-                (position) => {
-                  onLocationSelect({
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude
-                  });
-                },
-                (error) => {
-                  console.error('Error getting location:', error);
-                  alert('Unable to retrieve your location');
-                }
-              );
-            } else {
-              alert('Geolocation is not supported by your browser');
-            }
-          }}
+          onClick={handleLocationClick}
           sx={styles.locateButton}
         >
           <MyLocationIcon />

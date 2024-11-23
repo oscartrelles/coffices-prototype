@@ -10,7 +10,7 @@ import PropTypes from 'prop-types';
 
 const DEFAULT_LOCATION = { lat: 36.7213028, lng: -4.4216366 }; // Málaga
 const DEFAULT_ZOOM = 15;
-const SEARCH_RADIUS = 1500; // meters
+const SEARCH_RADIUS = 1000; // meters
 
 function Map({ user, onSignInClick, selectedLocation }) {
   console.log('Map component rendering');
@@ -246,7 +246,7 @@ function Map({ user, onSignInClick, selectedLocation }) {
     // At zoom level 13, radius is 2000m
     // Each zoom level doubles/halves the radius
     const baseRadius = 2000;
-    const baseZoom = 13;
+    const baseZoom = DEFAULT_ZOOM;
     const zoomDiff = zoom - baseZoom;
     return baseRadius * Math.pow(0.5, zoomDiff);
   }, []);
@@ -304,14 +304,14 @@ function Map({ user, onSignInClick, selectedLocation }) {
   }, [mapInstance, handleMapIdle, debouncedSearch]);
 
   // 3. Then declare handleLocationSelect
-  const handleLocationSelect = (location) => {
+  const handleLocationSelect = (location, mapInstance) => {
     console.log('Received new location:', location);
     
     if (mapInstance && location.lat && location.lng) {
       const newCenter = new window.google.maps.LatLng(location.lat, location.lng);
       console.log('Setting new map center:', newCenter.toString());
       mapInstance.setCenter(newCenter);
-      mapInstance.setZoom(13);
+      mapInstance.setZoom(DEFAULT_ZOOM);
     }
   };
 
