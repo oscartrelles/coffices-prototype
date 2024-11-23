@@ -3,13 +3,15 @@ import { auth } from '../../firebaseConfig';
 import { 
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendPasswordResetEmail 
+  sendPasswordResetEmail,
+  updateProfile 
 } from 'firebase/auth';
 import colors from '../../styles/colors';
 
 const EmailSignIn = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState(null);
   const [resetSent, setResetSent] = useState(false);
@@ -21,7 +23,11 @@ const EmailSignIn = () => {
     
     try {
       if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        
+        await updateProfile(userCredential.user, {
+          displayName: name
+        });
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -78,6 +84,16 @@ const EmailSignIn = () => {
     <div style={styles.container}>
       <h2 style={styles.title}>{isSignUp ? 'Sign Up' : 'Sign In'}</h2>
       <form onSubmit={handleSubmit} style={styles.form}>
+        {isSignUp && (
+          <input
+            type="text"
+            placeholder="Full Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={styles.input}
+            required
+          />
+        )}
         <input
           type="email"
           placeholder="Email"

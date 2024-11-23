@@ -14,14 +14,14 @@ function Header({ user, onSignInClick }) {
   };
 
   const displayName = useMemo(() => {
-    if (user?.name) {
-      return user.name;
+    if (user?.displayName) {
+      return user.displayName;
     }
     if (user?.email) {
       return user.email.split('@')[0];  // Get the part before @
     }
     return 'Guest';
-  }, [user?.name, user?.email]);
+  }, [user?.displayName, user?.email]);
 
   return (
     <header style={styles.header}>
