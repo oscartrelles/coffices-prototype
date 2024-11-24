@@ -82,7 +82,6 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
     <div style={styles.container}>
       <IconButton 
         onClick={() => {
-          console.log('Close button clicked');
           onClose();
         }}
         sx={{

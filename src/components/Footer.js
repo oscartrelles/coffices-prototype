@@ -10,7 +10,7 @@ function Footer() {
   return (
     <Box sx={styles.footer}>
       <Typography variant="caption" sx={styles.copyright}>
-        © {new Date().getFullYear()} Coffices. All rights reserved.
+        © {new Date().getFullYear()} All rights reserved.
       </Typography>
       
       <Box sx={styles.socialIcons}>

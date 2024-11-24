@@ -69,34 +69,51 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick = () =>
 
   return (
     <Box sx={styles.searchContainer}>
-    <Paper
-      component="form"
-      sx={{
-        p: '2px 4px',
-        display: 'flex',
-        alignItems: 'center',
-        width: '100%',
-        boxShadow: 3
-      }}
-    >
-      <IconButton 
-        sx={{ p: '10px' }} 
-        aria-label="locate me"
-        onClick={onLocationClick}
+      <Paper
+        component="form"
+        sx={{
+          p: '2px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          width: '100%',
+          boxShadow: 3,
+          borderRadius: '22px',
+          '& .MuiInputBase-input': {
+            width: '100%',
+            overflow: 'visible',
+            textOverflow: 'ellipsis',
+          }
+        }}
       >
-        <MyLocationIcon />
-      </IconButton>
-      
-      <InputBase
-        id="search-input"
-        type="text"
-        value={searchInput}
-        onChange={(e) => setSearchInput(e.target.value)}
-        placeholder="Search for a location..."
-        style={styles.input}
-        autoComplete="off"
-      />
-    </Paper>
+        <IconButton 
+          sx={{ p: '10px' }} 
+          aria-label="locate me"
+          onClick={onLocationClick}
+        >
+          <MyLocationIcon />
+        </IconButton>
+        
+        <InputBase
+          id="search-input"
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="Search for a location..."
+          style={styles.input}
+          autoComplete="off"
+          sx={{
+            ml: 1,
+            flex: 1,
+            width: '100%',
+            '& input': {
+              width: '100%',
+              overflow: 'visible',
+              textOverflow: 'ellipsis',
+            }
+          }}
+          inputProps={{ 'aria-label': 'search coffee shops' }}
+        />
+      </Paper>
     </Box>
   );
 }
@@ -110,87 +127,42 @@ const styles = {
     width: '90%',
     maxWidth: '600px',
     zIndex: 1000,
-    backgroundColor: 'transparent',
-    padding: '0 16px',
     boxSizing: 'border-box',
-  },
-  searchInput: {
-    width: '100%',
-    height: '44px',
-    padding: '0 16px',
-    borderRadius: '22px',
-    border: 'none',
-    backgroundColor: colors.background.paper,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-    fontSize: '16px',
-    outline: 'none',
-    '&:focus': {
-      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-    },
-  },
-  searchResults: {
-    position: 'absolute',
-    top: '52px',
-    left: '16px',
-    right: '16px',
-    backgroundColor: colors.background.paper,
-    borderRadius: '12px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-    maxHeight: '400px',
-    overflowY: 'auto',
-    zIndex: 1001,
-  },
-  resultItem: {
-    padding: '12px 16px',
-    cursor: 'pointer',
-    '&:hover': {
-      backgroundColor: colors.background.main,
-    },
-    '&:first-child': {
-      borderTopLeftRadius: '12px',
-      borderTopRightRadius: '12px',
-    },
-    '&:last-child': {
-      borderBottomLeftRadius: '12px',
-      borderBottomRightRadius: '12px',
-    },
-  },
-  resultText: {
-    margin: 0,
-    fontSize: '14px',
-    color: colors.text.primary,
-  },
-  resultAddress: {
-    margin: '4px 0 0 0',
-    fontSize: '12px',
-    color: colors.text.secondary,
   },
   '@media (max-width: 600px)': {
     searchContainer: {
       top: '72px',
-      padding: '0 12px',
-    },
-    searchInput: {
-      height: '40px',
-      fontSize: '14px',
-    },
-  },
+      width: '95%',
+    }
+  }
 };
 
-// Add global styles for Google Places Autocomplete dropdown
+// Update the global styles for the Places Autocomplete dropdown
 const styleTag = document.createElement('style');
 styleTag.textContent = `
   .pac-container {
-    border: 1px solid ${colors.border} !important;
-    border-radius: 0 0 8px 8px !important;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-    margin-top: 4px !important;
+    margin-top: 8px !important;
+    border-radius: 12px !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
     background-color: ${colors.background.paper} !important;
     font-family: inherit !important;
+    
+    /* Match the search container width exactly */
+    width: 90% !important;
+    max-width: 600px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+  }
+
+  @media (max-width: 600px) {
+    .pac-container {
+      width: 95% !important;
+    }
   }
   
   .pac-item {
-    padding: 8px 16px !important;
+    padding: 12px 16px !important;
     cursor: pointer !important;
     font-size: 14px !important;
     color: ${colors.text.primary} !important;
