@@ -2,157 +2,179 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import colors from '../styles/colors';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
-import { Paper, InputBase, IconButton } from '@mui/material';
+import { Box, Paper, InputBase, IconButton } from '@mui/material';
 
-function SearchBar({ onLocationSelect, isMapLoaded, map }) {
+function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick = () => {} }) {
   const [searchInput, setSearchInput] = useState('');
   const autocompleteRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!isMapLoaded) {
-      console.log('Waiting for map to load...');
+      console.log('SearchBar: Waiting for maps to load');
       return;
     }
 
-    console.log('Map is loaded, initializing autocomplete');
+    console.log('SearchBar: Initializing autocomplete');
     const input = document.getElementById('search-input');
     if (!input) {
-      console.error('Search input not found');
+      console.error('SearchBar: Search input not found');
       return;
     }
 
-    const autocompleteInstance = new window.google.maps.places.Autocomplete(input, {
-      types: ['(cities)'],
-      fields: ['name', 'geometry', 'formatted_address']
-    });
-    autocompleteRef.current = autocompleteInstance;
+    try {
+      const autocompleteInstance = new window.google.maps.places.Autocomplete(input, {
+        fields: ['name', 'geometry', 'formatted_address'],
+        types: ['establishment', 'geocode']
+      });
 
-    autocompleteInstance.addListener('place_changed', () => {
-      const place = autocompleteInstance.getPlace();
-      if (place.geometry) {
-        onLocationSelect(place);
-      }
-    });
+      autocompleteRef.current = autocompleteInstance;
 
-    return () => {
-      if (autocompleteRef.current) {
-        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-        autocompleteRef.current = null;
-      }
-    };
-  }, [isMapLoaded, onLocationSelect]);
+      const placeChangedListener = autocompleteInstance.addListener('place_changed', () => {
+        const place = autocompleteInstance.getPlace();
+        console.log('SearchBar: Place selected:', place);
 
-  const handleLocationClick = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const userLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
+        if (place.geometry) {
+          const location = {
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
+            name: place.name,
+            formatted_address: place.formatted_address,
+            fromSearch: true
           };
           
-          onLocationSelect(userLocation, map);
-          
-          if (map) {
-            map.panTo(userLocation);
-          }
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          alert('Unable to retrieve your location');
+          console.log('SearchBar: Calling onLocationSelect with:', location);
+          onLocationSelect(location, map);
+          setSearchInput(place.name);
         }
-      );
-    } else {
-      alert('Geolocation is not supported by your browser');
+      });
+
+      return () => {
+        if (placeChangedListener) {
+          placeChangedListener.remove();
+        }
+        if (autocompleteRef.current) {
+          window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+          autocompleteRef.current = null;
+        }
+      };
+    } catch (error) {
+      console.error('SearchBar: Error initializing autocomplete:', error);
     }
+  }, [isMapLoaded, onLocationSelect, map]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
   };
 
   return (
-    <div style={styles.container}>
-      <Paper component="form" sx={styles.searchBar} elevation={3}>
-        <InputBase
-          id="search-input"
-          type="text"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="Search for a city..."
-          style={styles.input}
-        />
-        <IconButton
-          onClick={handleLocationClick}
-          sx={styles.locateButton}
-        >
-          <MyLocationIcon />
-        </IconButton>
-      </Paper>
-    </div>
+    <Box sx={styles.searchContainer}>
+    <Paper
+      component="form"
+      sx={{
+        p: '2px 4px',
+        display: 'flex',
+        alignItems: 'center',
+        width: '100%',
+        boxShadow: 3
+      }}
+    >
+      <IconButton 
+        sx={{ p: '10px' }} 
+        aria-label="locate me"
+        onClick={onLocationClick}
+      >
+        <MyLocationIcon />
+      </IconButton>
+      
+      <InputBase
+        id="search-input"
+        type="text"
+        value={searchInput}
+        onChange={(e) => setSearchInput(e.target.value)}
+        placeholder="Search for a location..."
+        style={styles.input}
+        autoComplete="off"
+      />
+    </Paper>
+    </Box>
   );
 }
 
 const styles = {
-  container: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
+  searchContainer: {
     position: 'absolute',
-    top: '80px',
+    top: '65px',
     left: '50%',
     transform: 'translateX(-50%)',
     width: '90%',
     maxWidth: '600px',
-    p: '2px 4px',
+    zIndex: 1000,
+    backgroundColor: 'transparent',
+    padding: '0 16px',
+    boxSizing: 'border-box',
+  },
+  searchInput: {
+    width: '100%',
+    height: '44px',
+    padding: '0 16px',
+    borderRadius: '22px',
+    border: 'none',
     backgroundColor: colors.background.paper,
-    zIndex: 999,
-    border: `1px solid ${colors.border}`,
-    '&:hover': {
-      border: `1px solid ${colors.primary.main}`,
-    },
-  },
-  searchBar: {
-    position: 'relative',
-    width: '100%',
-  },
-  input: {
-    width: '100%',
-    padding: '12px 40px 12px 16px', // Added right padding for search icon
+    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
     fontSize: '16px',
-    border: `1px solid ${colors.border}`,
-    borderRadius: '8px',
-    backgroundColor: colors.background.paper,
-    color: colors.text.primary,
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
     outline: 'none',
-    transition: 'all 0.2s ease',
-    ':focus': {
-      borderColor: colors.primary.main,
-      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+    '&:focus': {
+      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
     },
-    '::placeholder': {
-      color: colors.text.secondary,
-    }
   },
-  searchIcon: {
+  searchResults: {
     position: 'absolute',
-    right: '12px',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    fontSize: '18px',
-    color: colors.text.secondary,
-    pointerEvents: 'none',
-  },
-  locateButton: {
-    position: 'absolute',
-    right: '-48px', // Position it to the right of the search bar
-    top: '50%',
-    transform: 'translateY(-50%)',
+    top: '52px',
+    left: '16px',
+    right: '16px',
     backgroundColor: colors.background.paper,
-    color: colors.primary.main,
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    borderRadius: '12px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    maxHeight: '400px',
+    overflowY: 'auto',
+    zIndex: 1001,
+  },
+  resultItem: {
+    padding: '12px 16px',
+    cursor: 'pointer',
     '&:hover': {
-      backgroundColor: colors.background.overlay,
-    }
-  }
+      backgroundColor: colors.background.main,
+    },
+    '&:first-child': {
+      borderTopLeftRadius: '12px',
+      borderTopRightRadius: '12px',
+    },
+    '&:last-child': {
+      borderBottomLeftRadius: '12px',
+      borderBottomRightRadius: '12px',
+    },
+  },
+  resultText: {
+    margin: 0,
+    fontSize: '14px',
+    color: colors.text.primary,
+  },
+  resultAddress: {
+    margin: '4px 0 0 0',
+    fontSize: '12px',
+    color: colors.text.secondary,
+  },
+  '@media (max-width: 600px)': {
+    searchContainer: {
+      top: '72px',
+      padding: '0 12px',
+    },
+    searchInput: {
+      height: '40px',
+      fontSize: '14px',
+    },
+  },
 };
 
 // Add global styles for Google Places Autocomplete dropdown

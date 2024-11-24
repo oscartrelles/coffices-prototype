@@ -26,7 +26,7 @@ function Header({ user, onSignInClick }) {
   return (
     <header style={styles.header}>
       <div style={styles.leftSection}>
-        <h1 style={styles.title}>Find the Perfect Coffice!</h1>
+        <h1 style={styles.title}>Find a Coffice!</h1>
         <div style={styles.greeting}>
         </div>
       </div>

@@ -5,12 +5,13 @@ import { auth, handleRedirectResult } from './firebaseConfig';
 import EmailSignIn from './components/auth/EmailSignIn';
 import GoogleSignIn from './components/auth/GoogleSignIn';
 import Modal from './components/Modal';
-import MapLoader from './components/MapLoader';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import Box from '@mui/material/Box';
 import SearchBar from './components/SearchBar';
 import Map from './components/Map';
+import PlaceDetails from './components/PlaceDetails';
+import LoadingSpinner from './components/common/LoadingSpinner';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -19,16 +20,72 @@ function App() {
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [map, setMap] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      if (user) {
-        setShowAuthModal(false);
+    const initializeApp = async () => {
+      setIsLoading(true);
+      try {
+        // Wait for auth state to be determined
+        await new Promise(resolve => {
+          const unsubscribe = auth.onAuthStateChanged((user) => {
+            setUser(user);
+            unsubscribe();
+            resolve();
+          });
+        });
+
+        // Wait for geolocation if available
+        if ("geolocation" in navigator) {
+          await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+              (position) => {
+                setUserLocation({
+                  lat: position.coords.latitude,
+                  lng: position.coords.longitude
+                });
+                resolve();
+              },
+              (error) => {
+                console.error('Error getting location:', error);
+                resolve(); // Resolve anyway to continue app initialization
+              }
+            );
+          });
+        }
+
+      } catch (error) {
+        console.error('Error initializing app:', error);
+      } finally {
+        setIsLoading(false);
       }
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    };
+
+    initializeApp();
+  }, []);
+
+  useEffect(() => {
+    if (window.google) {
+      console.log('Google Maps already loaded');
+      setIsMapLoaded(true);
+      return;
+    }
+
+    console.log('Loading Google Maps script');
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places`;
+    script.async = true;
+    script.onload = () => {
+      console.log('Google Maps loaded successfully');
+      setIsMapLoaded(true);
+    };
+
+    document.head.appendChild(script);
+
+    return () => {
+      document.head.removeChild(script);
+    };
   }, []);
 
   const handleSignInClick = () => {
@@ -41,28 +98,34 @@ function App() {
     setShowAuthModal(false);
   };
 
-  const handleLocationSelect = (place, map) => {
-    console.log('Location selected in App:', place);
-    
-    const location = place.geometry ? {
-      lat: place.geometry.location.lat(),
-      lng: place.geometry.location.lng(),
-      name: place.name,
-      formatted_address: place.formatted_address
-    } : {
-      lat: place.lat,
-      lng: place.lng
-    };
-
+  const handleLocationSelect = useCallback((location) => {
+    console.log('Location selected:', location);
     setSelectedLocation(location);
-  };
-
-  const handleMapLoaded = useCallback((loaded) => {
-    console.log('Map loaded status:', loaded);
-    setIsMapLoaded(loaded);
   }, []);
 
-  if (loading) return <div>Loading...</div>;
+  const handleUserLocation = useCallback((location) => {
+    setUserLocation(location);
+  }, []);
+
+  const handleLocationClick = useCallback(() => {
+    console.log('Location click handler called', { map, userLocation });
+    if (!map) {
+      console.log('Waiting for map to be ready...');
+      return;
+    }
+    
+    if (!userLocation) {
+      console.log('No user location available');
+      return;
+    }
+
+    handleLocationSelect({
+      ...userLocation,
+      fromSearch: true
+    }, map);
+  }, [map, userLocation, handleLocationSelect]);
+
+  if (isLoading) return <LoadingSpinner />;
 
   return (
     <BrowserRouter>
@@ -75,48 +138,58 @@ function App() {
         top: 0,
         left: 0
       }}>
-        <Header 
-          user={user} 
-          onSignInClick={handleSignInClick} 
-        />
-        
-        <Box sx={{ 
-          position: 'absolute', 
-          top: '20px', 
-          left: '50%', 
-          transform: 'translateX(-50%)',
-          zIndex: 1000,
-          width: '90%',
-          maxWidth: '600px'
-        }}>
-          <SearchBar 
-            onLocationSelect={handleLocationSelect}
-            isMapLoaded={isMapLoaded}
-            map={map}
-          />
-        </Box>
-        
-        <MapLoader onMapLoaded={handleMapLoaded}>
-          <Map 
-            user={user} 
-            onSignInClick={handleSignInClick} 
-            selectedLocation={selectedLocation}
-            onMapInstance={(mapInstance) => setMap(mapInstance)}
-          />
-        </MapLoader>
-        
-        <Footer />
-        
-        <Modal
-          open={showAuthModal}
-          onClose={handleModalClose}
-        >
-          <div style={styles.authContainer}>
-            <EmailSignIn onSuccess={handleModalClose} />
-            <div style={styles.divider} />
-            <GoogleSignIn onSuccess={handleModalClose} />
-          </div>
-        </Modal>
+        {isLoading ? (
+          <LoadingSpinner />
+        ) : (
+          <>
+            <Header 
+              user={user} 
+              onSignInClick={handleSignInClick} 
+            />
+            
+            {isMapLoaded && (
+              <>
+                <Box sx={{ 
+                  position: 'absolute', 
+                  top: '20px', 
+                  left: '50%', 
+                  transform: 'translateX(-50%)',
+                  zIndex: 1000,
+                  width: '90%',
+                  maxWidth: '600px'
+                }}>
+                  <SearchBar 
+                    onLocationSelect={handleLocationSelect}
+                    isMapLoaded={isMapLoaded}
+                    map={map}
+                    onLocationClick={handleLocationClick}
+                  />
+                </Box>
+                
+                <Map 
+                  user={user} 
+                  onSignInClick={handleSignInClick} 
+                  selectedLocation={selectedLocation}
+                  onMapInstance={setMap}
+                  onUserLocation={handleUserLocation}
+                />
+              </>
+            )}
+            
+            <Footer />
+            
+            <Modal
+              open={showAuthModal}
+              onClose={handleModalClose}
+            >
+              <div style={styles.authContainer}>
+                <EmailSignIn onSuccess={handleModalClose} />
+                <div style={styles.divider} />
+                <GoogleSignIn onSuccess={handleModalClose} />
+              </div>
+            </Modal>
+          </>
+        )}
       </Box>
     </BrowserRouter>
   );

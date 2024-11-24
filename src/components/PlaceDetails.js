@@ -47,9 +47,18 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
     }
 
     const placeLocation = {
-      lat: place.geometry.location.lat(),
-      lng: place.geometry.location.lng()
+      lat: typeof place.geometry.location.lat === 'function' 
+        ? place.geometry.location.lat() 
+        : place.geometry.location.lat,
+      lng: typeof place.geometry.location.lng === 'function' 
+        ? place.geometry.location.lng() 
+        : place.geometry.location.lng
     };
+
+    console.log('Calculating distance between:', {
+      user: userLocation,
+      place: placeLocation
+    });
 
     return calculateDistance(userLocation, placeLocation);
   };
@@ -136,10 +145,7 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
             </>
           ) : (
             <>
-              <StarIcon style={styles.starIcon} />
-              <span>
-                {place.rating ? `${place.rating.toFixed(1)} (${place.user_ratings_total})` : 'No rating'}
-              </span>
+              <StarIcon style={styles.starIcon} /><span>{place.rating ? `${place.rating.toFixed(1)} (${place.user_ratings_total})` : 'No rating'}</span>
             </>
           )}
         </div>

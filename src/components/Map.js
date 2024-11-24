@@ -7,17 +7,30 @@ import colors from '../styles/colors';
 import { debounce } from 'lodash';
 import { calculateDistance } from '../utils/distance';
 import PropTypes from 'prop-types';
+import { useGeolocation } from '../hooks/useGeolocation';
 
 const DEFAULT_LOCATION = { lat: 36.7213028, lng: -4.4216366 }; // Málaga
 const DEFAULT_ZOOM = 15;
+const MIN_ZOOM = 14;
+const MAX_ZOOM = 17;
 const SEARCH_RADIUS = 1000; // meters
 
-function Map({ user, onSignInClick, selectedLocation }) {
-  console.log('Map component rendering');
+function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocation = () => {} }) {
+  console.log('Map: Rendering with props:', { user, selectedLocation });
 
-  // Add isInitialLoad state at the top with other state declarations
+  // Near the top with other state declarations
+  const [lastSearchLocation, setLastSearchLocation] = useState(null);
+  const [currentLocation, setCurrentLocation] = useState(null);
+  const [isLocationInitialized, setIsLocationInitialized] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [locationReady, setLocationReady] = useState(false);
+
+  // Refs (keep these together)
+  const mapRef = useRef(null);
+  const markersRef = useRef({});
+  const clustererRef = useRef(null);
+  const lastSearchLocationRef = useRef(null);
+  const isProgrammaticMoveRef = useRef(false);
+  const lastHandledLocationRef = useRef(null);
 
   // Define marker styles
   const markerStyles = {
@@ -97,14 +110,9 @@ function Map({ user, onSignInClick, selectedLocation }) {
   const [selectedShop, setSelectedShop] = useState(null);
   const [selectedMarkerId, setSelectedMarkerId] = useState(null);
   const [coffeeShops, setCoffeeShops] = useState([]);
-  const [currentLocation, setCurrentLocation] = useState(DEFAULT_LOCATION);
   const [showRatingForm, setShowRatingForm] = useState(false);
   const [cofficeRatings, setCofficeRatings] = useState(null);
   const [userRating, setUserRating] = useState(null);
-
-  const mapRef = useRef(null);
-  const markersRef = useRef({});
-  const clustererRef = useRef(null);
 
   // Add state for showing comments
   const [showComments, setShowComments] = useState(false);
@@ -119,10 +127,10 @@ function Map({ user, onSignInClick, selectedLocation }) {
   // Define a unified search configuration
   const getPlacesRequest = (location) => ({
     location: location,
-    radius: SEARCH_RADIUS,
+    radius: getSearchRadius(),
     type: ['cafe', 'restaurant', 'bar', 'bakery', 'food'],  // Cast a wider net for establishment types
-    keyword: 'coffee cafe wifi laptop',  // Expanded workspace-related terms
-    rankBy: window.google.maps.places.RankBy.RATING,
+    keyword: 'coffee cafe wifi laptop'  // Expanded workspace-related terms
+    //rankBy: window.google.maps.places.RankBy.RATING,
     // Note: Using both radius and rankBy together ensures we get more results
     // while still prioritizing highly-rated places within our search area
   });
@@ -150,79 +158,130 @@ function Map({ user, onSignInClick, selectedLocation }) {
     return !querySnapshot.empty;
   }, []);
 
-  // Update updateMarkers to handle rated places
+  // Add ref to track last update
+  const lastUpdateRef = useRef(null);
+
+  // Update the updateMarkers function
   const updateMarkers = useCallback(async () => {
     if (!mapInstance || !coffeeShops.length) {
       console.log('Cannot create markers:', { hasMap: !!mapInstance, shopCount: coffeeShops.length });
       return;
     }
 
-    console.log('Updating markers for', coffeeShops.length, 'shops');
+    // Check if we've already updated for these places
+    const placesKey = coffeeShops.map(p => p.place_id).join(',');
+    if (lastUpdateRef.current === placesKey) {
+      console.log('⏭️ Skipping duplicate marker update');
+      return;
+    }
+    
+    console.log('🎯 Updating markers for', coffeeShops.length, 'places');
+    lastUpdateRef.current = placesKey;
     
     // Clear old markers
-    Object.entries(markersRef.current).forEach(([placeId, marker]) => {
-      if (!coffeeShops.find(shop => shop.place_id === placeId)) {
-        marker.setMap(null);
-        delete markersRef.current[placeId];
+    Object.values(markersRef.current).forEach(marker => {
+      marker.setMap(null);
+    });
+    markersRef.current = {};
+    
+    // Create new markers
+    for (const place of coffeeShops) {
+      const marker = new window.google.maps.Marker({
+        position: place.geometry.location,
+        map: mapInstance,
+        title: place.name,
+        icon: markerStyles.default
+      });
+
+      marker.addListener('click', () => handleMarkerClick(marker, place));
+      markersRef.current[place.place_id] = marker;
+      
+      // Check if this place has ratings
+      const hasRatings = await checkPlaceRatings(place.place_id);
+      if (hasRatings) {
+        marker.setIcon(place.place_id === selectedShop?.place_id ? 
+          markerStyles.ratedSelected : 
+          markerStyles.rated
+        );
+        marker.hasRatings = true;
+      }
+    }
+
+    console.log('✅ Created', Object.keys(markersRef.current).length, 'markers');
+  }, [mapInstance, coffeeShops, selectedShop, markerStyles, handleMarkerClick, checkPlaceRatings]);
+
+  // Update searchNearby to only use coffeeShops state
+  const searchNearby = useCallback((location, isProgrammatic = false) => {
+    if (!location || !mapInstance) {
+      console.log('🚫 Cannot search:', { hasLocation: !!location, hasMap: !!mapInstance });
+      return;
+    }
+    
+    // Skip if this is the same location we just searched
+    if (lastSearchLocationRef.current && 
+        lastSearchLocationRef.current.lat === location.lat && 
+        lastSearchLocationRef.current.lng === location.lng) {
+      console.log('⏭️ Skipping duplicate search at same location');
+      return;
+    }
+    
+    console.log('🔍 searchNearby called with:', location, 'isProgrammatic:', isProgrammatic);
+    
+    // Update last search location before making the request
+    lastSearchLocationRef.current = location;
+    
+    const request = getPlacesRequest(location);
+    const service = new window.google.maps.places.PlacesService(mapInstance);
+
+    service.nearbySearch(request, (results, status) => {
+      if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+        console.log('✅ Found nearby coffee shops:', results.length);
+        setCoffeeShops(results);
+        setLastSearchLocation(location);
+      } else {
+        console.log('❌ Places search failed:', status);
+        setCoffeeShops([]);
       }
     });
+  }, [mapInstance, getPlacesRequest]);
+
+  // 1. First define getSearchRadius
+  const getSearchRadius = useCallback(() => {
+    if (!mapInstance) return SEARCH_RADIUS;
+
+    // Get the bounds of the current viewport
+    const bounds = mapInstance.getBounds();
+    if (!bounds) return SEARCH_RADIUS;
+
+    // Calculate the viewport width in meters
+    const ne = bounds.getNorthEast();
+    const sw = bounds.getSouthWest();
+    const width = calculateDistance(
+      { lat: ne.lat(), lng: sw.lng() },
+      { lat: ne.lat(), lng: ne.lng() }
+    );
+
+    // Use half the viewport width as the search radius
+    return width / 1.5;
+  }, [mapInstance]);
+
+  // 3. Then define centerMapOnLocation
+  const centerMapOnLocation = useCallback((location) => {
+    if (!mapInstance || !location) return;
     
-    // Create or update markers
-    for (const shop of coffeeShops) {
-      const existingMarker = markersRef.current[shop.place_id];
-      if (!existingMarker) {
-        // Check if place has ratings
-        const hasRatings = await checkPlaceRatings(shop.place_id);
-        
-        const marker = new window.google.maps.Marker({
-          position: shop.geometry.location,
-          map: mapInstance,
-          title: shop.name,
-          animation: window.google.maps.Animation.DROP,
-          icon: hasRatings ? 
-            (shop.place_id === selectedShop?.place_id ? markerStyles.ratedSelected : markerStyles.rated) :
-            (shop.place_id === selectedShop?.place_id ? markerStyles.selected : markerStyles.default),
-          placeData: shop,
-          hasRatings: hasRatings
-        });
-
-        marker.addListener('click', () => handleMarkerClick(marker, shop));
-        markersRef.current[shop.place_id] = marker;
-      }
-    }
-  }, [mapInstance, coffeeShops, selectedShop, handleMarkerClick, markerStyles, checkPlaceRatings]);
-
-  // Then define searchNearby
-  const [lastSearchLocation, setLastSearchLocation] = useState(null);
-
-  const searchNearby = useCallback(async (location) => {
-    if (!mapInstance) return;
-
-    console.log('Starting nearby search at:', location);
-    setLastSearchLocation(location);
-
-    const currentZoom = mapInstance.getZoom();
-    const radius = getSearchRadius(currentZoom);
-
-    try {
-      const service = new window.google.maps.places.PlacesService(mapInstance);
-      
-      const request = getPlacesRequest(location);
-
-      console.log('Search request:', request);
-
-      service.nearbySearch(request, (results, status) => {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-          console.log('Found nearby coffee shops:', results.length);
-          setCoffeeShops(results);
-        } else {
-          console.error('Places search failed:', status);
-        }
-      });
-    } catch (error) {
-      console.error('Error in searchNearby:', error);
-    }
-  }, [mapInstance, setLastSearchLocation]);
+    console.log('Centering map on location:', location);
+    const newCenter = new window.google.maps.LatLng(location.lat, location.lng);
+    
+    // Set flag before programmatic move
+    isProgrammaticMoveRef.current = true;
+    mapInstance.panTo(newCenter);
+    
+    // Update current location state
+    setCurrentLocation(location);
+    
+    // Trigger a new search at this location
+    searchNearby(location);
+  }, [mapInstance, searchNearby]);
 
   // Then define debouncedSearch
   const debouncedSearch = useCallback(
@@ -233,33 +292,30 @@ function Map({ user, onSignInClick, selectedLocation }) {
     [searchNearby]
   );
 
-  // Add effect to update markers when coffee shops change
+  // Update effect to watch coffeeShops
   useEffect(() => {
     if (coffeeShops.length > 0) {
+      console.log('🔄 Updating markers due to new places:', coffeeShops.length);
       updateMarkers();
     }
   }, [coffeeShops, updateMarkers]);
 
-  // First define getSearchRadius
-  const getSearchRadius = useCallback((zoom) => {
-    // Adjust radius based on zoom level
-    // At zoom level 13, radius is 2000m
-    // Each zoom level doubles/halves the radius
-    const baseRadius = 2000;
-    const baseZoom = DEFAULT_ZOOM;
-    const zoomDiff = zoom - baseZoom;
-    return baseRadius * Math.pow(0.5, zoomDiff);
-  }, []);
-
   // Then define handleMapIdle
   const handleMapIdle = useCallback(() => {
-    if (isInitialLoad) {
-      console.log('Skipping initial idle event');
-      setIsInitialLoad(false);
+    if (!mapInstance) return;
+
+    console.log('🌎 Map idle event fired:', {
+      isProgrammaticMove: isProgrammaticMoveRef.current,
+      isInitialLoad
+    });
+
+    if (isProgrammaticMoveRef.current) {
+      console.log('⏭️ Skipping search - programmatic move');
+      isProgrammaticMoveRef.current = false;
       return;
     }
 
-    const center = mapInstance?.getCenter();
+    const center = mapInstance.getCenter();
     if (!center) return;
 
     const newLocation = {
@@ -267,26 +323,24 @@ function Map({ user, onSignInClick, selectedLocation }) {
       lng: center.lng()
     };
 
-    // Skip if this is our first search
+    // If this is our first search or we've moved significantly, perform search
     if (!lastSearchLocation) {
-      setLastSearchLocation(newLocation);
-      return;
-    }
-
-    // Calculate distance from last search
-    const distance = calculateDistance(lastSearchLocation, newLocation);
-    const searchRadius = getSearchRadius(mapInstance.getZoom());
-    
-    console.log('Distance moved:', Math.round(distance), 'm, Search radius:', searchRadius, 'm');
-
-    // Only search if we've moved more than half the search radius
-    if (distance > searchRadius / 2) {
-      console.log('Moved significant distance, searching new area');
-      debouncedSearch(newLocation);
+      console.log('🔍 Initial search at:', newLocation);
+      searchNearby(newLocation);
     } else {
-      console.log('Movement too small, skipping search');
+      const distance = calculateDistance(lastSearchLocation, newLocation);
+      const searchRadius = getSearchRadius();
+      
+      console.log('📏 Distance moved:', Math.round(distance), 'm, Search radius:', searchRadius, 'm');
+
+      if (distance > searchRadius / 2) {
+        console.log('🔄 Significant movement detected, triggering search');
+        searchNearby(newLocation);
+      } else {
+        console.log('⏭️ Movement too small, skipping search');
+      }
     }
-  }, [mapInstance, isInitialLoad, lastSearchLocation, debouncedSearch, getSearchRadius, setLastSearchLocation]);
+  }, [mapInstance, isInitialLoad, lastSearchLocation, searchNearby, getSearchRadius]);
 
   // Then the map idle listener effect
   useEffect(() => {
@@ -295,7 +349,9 @@ function Map({ user, onSignInClick, selectedLocation }) {
     console.log('Setting up map idle listener');
     const idleListener = mapInstance.addListener('idle', handleMapIdle);
 
+    // Clean up function
     return () => {
+      console.log('Cleaning up map idle listener');
       if (idleListener) {
         window.google.maps.event.removeListener(idleListener);
       }
@@ -304,16 +360,18 @@ function Map({ user, onSignInClick, selectedLocation }) {
   }, [mapInstance, handleMapIdle, debouncedSearch]);
 
   // 3. Then declare handleLocationSelect
-  const handleLocationSelect = (location, mapInstance) => {
-    console.log('Received new location:', location);
+  const handleLocationSelect = useCallback((location, mapInstance) => {
+    if (!location) return;
     
-    if (mapInstance && location.lat && location.lng) {
+    console.log('Location selected:', location);
+    
+    // Only perform search if this is from a search action
+    if (location.fromSearch) {
       const newCenter = new window.google.maps.LatLng(location.lat, location.lng);
-      console.log('Setting new map center:', newCenter.toString());
-      mapInstance.setCenter(newCenter);
-      mapInstance.setZoom(DEFAULT_ZOOM);
+      mapInstance?.panTo(newCenter);
+      searchNearby(location);
     }
-  };
+  }, [searchNearby]);
 
   // Update rating handling for multiple categories
   const handleRating = useCallback(async (ratings) => {
@@ -425,80 +483,72 @@ function Map({ user, onSignInClick, selectedLocation }) {
     }
   }, [selectedShop, user, fetchUserRating]);
 
-  // Update the initial map setup effect
+  // Update the initial map setup
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || mapInstance) return;
 
-    console.log('Map initialization starting');
+    const map = new window.google.maps.Map(mapRef.current, {
+      center: DEFAULT_LOCATION,
+      zoom: DEFAULT_ZOOM,
+      minZoom: MIN_ZOOM,
+      maxZoom: MAX_ZOOM,
+      styles: mapStyles,
+      disableDefaultUI: true,
+      clickableIcons: false,
+      gestureHandling: 'greedy',
+      zoomControl: true,
+      zoomControlOptions: {
+        position: window.google.maps.ControlPosition.RIGHT_CENTER
+      },
+      mapTypeControl: false,
+      scaleControl: false,
+      streetViewControl: false,
+      rotateControl: false,
+      fullscreenControl: false
+    });
 
-    // Get user location first, then initialize map
-    if (navigator.geolocation) {
-      console.log('Requesting user location...');
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const userLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          console.log('Got user location:', userLocation);
-          setCurrentLocation(userLocation);
-          
-          // Initialize map with user location
-          const map = new window.google.maps.Map(mapRef.current, {
-            center: userLocation,  // Use user location as center
-            zoom: 15,
-            minZoom: 14,
-            maxZoom: 17,
-            styles: mapStyles,
-            disableDefaultUI: true,
-            clickableIcons: false,
-            gestureHandling: 'greedy',
-            zoomControl: true,
-            zoomControlOptions: {
-              position: window.google.maps.ControlPosition.RIGHT_CENTER
-            },
-            mapTypeControl: false,
-            scaleControl: false,
-            streetViewControl: false,
-            rotateControl: false,
-            fullscreenControl: false
-          });
-
-          setMapInstance(map);
-          searchNearby(userLocation);
-        },
-        (error) => {
-          console.log('Geolocation error:', error);
-          // Fall back to default location only if geolocation fails
-          const map = new window.google.maps.Map(mapRef.current, {
-            center: DEFAULT_LOCATION,
-            zoom: 15,
-            // ... other map options ...
-          });
-
-          setMapInstance(map);
-          searchNearby(DEFAULT_LOCATION);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 5000,
-          maximumAge: 0
-        }
-      );
-    } else {
-      // Browser doesn't support geolocation, use default location
-      console.log('Geolocation not supported, using default location');
-      const map = new window.google.maps.Map(mapRef.current, {
-        center: DEFAULT_LOCATION,
-        zoom: 15,
-        // ... other map options ...
-      });
-
-      setMapInstance(map);
-      searchNearby(DEFAULT_LOCATION);
+    setMapInstance(map);
+    if (onMapInstance) {
+      console.log('Sharing map instance with parent');
+      onMapInstance(map);
     }
-  }, []); // Empty dependency array since this should only run once
+  }, [onMapInstance]);
 
+  // Update the selectedLocation effect
+  useEffect(() => {
+    if (!selectedLocation || !mapInstance) return;
+
+    // Check if we've already handled this exact location
+    if (lastHandledLocationRef.current?.lat === selectedLocation.lat && 
+        lastHandledLocationRef.current?.lng === selectedLocation.lng) {
+      console.log('📍 Skipping duplicate location change');
+      return;
+    }
+
+    console.log('📍 Handling new location change:', selectedLocation);
+    
+    // Update last handled location
+    lastHandledLocationRef.current = selectedLocation;
+    
+    // Set flag BEFORE the programmatic move
+    isProgrammaticMoveRef.current = true;
+    
+    const newCenter = new window.google.maps.LatLng(
+      selectedLocation.lat,
+      selectedLocation.lng
+    );
+    
+    mapInstance.panTo(newCenter);
+    mapInstance.setZoom(DEFAULT_ZOOM);
+    
+    // Do a single search for the new location
+    if (selectedLocation.fromSearch) {
+      searchNearby({
+        lat: selectedLocation.lat,
+        lng: selectedLocation.lng
+      });
+    }
+  }, [selectedLocation, mapInstance, searchNearby]);
 
   // Update handleClose function
   const handleClose = useCallback(() => {
@@ -511,32 +561,48 @@ function Map({ user, onSignInClick, selectedLocation }) {
     });
   }, [markerStyles]);
 
-  // Update the selectedLocation effect
+  // Add this ref to track if we've done the initial search
+  const initialSearchDoneRef = useRef(false);
+
+  // Update the geolocation callback
+  const { 
+    currentLocation: geoLocation, 
+    isInitialized 
+  } = useGeolocation(
+    useCallback((location) => {
+      if (!mapInstance || !location || initialSearchDoneRef.current) return;
+
+      console.log('📍 Handling geolocation update:', location);
+      
+      if (!isLocationInitialized && !selectedLocation) {
+        console.log('📍 Initial center on user location:', location);
+        isProgrammaticMoveRef.current = true;
+        mapInstance.panTo(location);
+        mapInstance.setZoom(DEFAULT_ZOOM);
+        setIsLocationInitialized(true);
+        
+        // Perform initial search only once
+        if (!initialSearchDoneRef.current) {
+          console.log('🔍 Performing initial location search');
+          initialSearchDoneRef.current = true;
+          searchNearby(location, true);
+        }
+      }
+
+      setCurrentLocation(location);
+      if (onUserLocation) {
+        onUserLocation(location);
+      }
+    }, [mapInstance, selectedLocation, onUserLocation, isLocationInitialized, searchNearby])
+  );
+
+  // Remove or update other effects that might trigger location initialization
   useEffect(() => {
-    if (selectedLocation && mapInstance) {
-      console.log('Setting new location from props:', selectedLocation);
-      const newCenter = new window.google.maps.LatLng(
-        selectedLocation.lat,
-        selectedLocation.lng
-      );
-      
-      // Update map center and zoom
-      mapInstance.setCenter(newCenter);
-      mapInstance.setZoom(15);
-      
-      // Update current location state
-      setCurrentLocation({
-        lat: selectedLocation.lat,
-        lng: selectedLocation.lng
-      });
-      
-      // Trigger a new search at this location
-      searchNearby({
-        lat: selectedLocation.lat,
-        lng: selectedLocation.lng
-      });
+    if (geoLocation) {
+      console.log('📍 Updated user location:', geoLocation);
+      setCurrentLocation(geoLocation);
     }
-  }, [selectedLocation, mapInstance]);
+  }, [geoLocation]);
 
   // Add this return statement at the end of the Map component
   return (
@@ -765,7 +831,11 @@ const styles = {
 
 // Wrap Map with React.memo and a custom comparison function
 export default React.memo(Map, (prevProps, nextProps) => {
-  // Only re-render if user auth state changes
+  // Deep compare the selectedLocation object
+  const locationEqual = prevProps.selectedLocation?.lat === nextProps.selectedLocation?.lat &&
+                       prevProps.selectedLocation?.lng === nextProps.selectedLocation?.lng;
+                       
   return prevProps.user?.uid === nextProps.user?.uid &&
-         prevProps.onSignInClick === nextProps.onSignInClick;
+         prevProps.onSignInClick === nextProps.onSignInClick &&
+         locationEqual;
 }); 
