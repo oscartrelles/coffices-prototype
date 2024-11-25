@@ -8,6 +8,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword 
 } from "firebase/auth";
+import { getAnalytics, logEvent } from 'firebase/analytics';
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -22,6 +23,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+const analytics = getAnalytics(app);
 
 // Create a persistent provider instance
 const googleProvider = new GoogleAuthProvider();
@@ -72,3 +74,11 @@ export const signUpWithEmail = async (email, password) => {
     throw error;
   }
 };
+
+export const logAnalyticsEvent = (eventName, eventParams = {}) => {
+  if (process.env.REACT_APP_FIREBASE_MEASUREMENT_ID) {
+    logEvent(analytics, eventName, eventParams);
+  }
+};
+
+export { analytics };

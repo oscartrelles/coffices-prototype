@@ -63,7 +63,7 @@ const styles = {
     justifyContent: 'space-between',
     padding: '0 16px',
     zIndex: 1000,
-    '@supports (-webkit-touch-callout: none)': {
+    ['@supports (WebkitTouchCallout: none)']: {
       flexWrap: 'nowrap',
       minHeight: '60px'
     }
@@ -84,16 +84,16 @@ const styles = {
     fontWeight: '600',
     color: colors.text.primary,
     whiteSpace: 'nowrap',
-    '@media (max-width: 380px)': {
-      fontSize: '20px',
+    ['@media (maxWidth: 380px)']: {
+      fontSize: '20px'
     }
   },
   greeting: {
     fontSize: '14px',
     color: colors.text.secondary,
-    '@media (max-width: 480px)': {
-      display: 'none', // Hide greeting on very small screens
-    },
+    ['@media (maxWidth: 480px)']: {
+      display: 'none'
+    }
   },
   userInfo: {
     display: 'flex',
@@ -114,8 +114,8 @@ const styles = {
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     maxWidth: '120px',
-    '@media (max-width: 600px)': {
-      display: 'none', // Hide username on small screens
+    ['@media (maxWidth: 600px)']: {
+      display: 'none'
     }
   },
   authButton: {
@@ -130,8 +130,8 @@ const styles = {
     transition: 'all 0.2s ease',
     whiteSpace: 'nowrap',
     minWidth: '80px',
-    '@media (max-width: 380px)': {
-      padding: '6px 10px',
+    ['@media (maxWidth: 380px)']: {
+      padding: '6px 10px'
     }
   }
 };

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, handleRedirectResult } from './firebaseConfig';
+import { auth, handleRedirectResult, logAnalyticsEvent } from './firebaseConfig';
 import EmailSignIn from './components/auth/EmailSignIn';
 import GoogleSignIn from './components/auth/GoogleSignIn';
 import Modal from './components/Modal';
@@ -74,9 +74,12 @@ function App() {
 
     console.log('Loading Google Maps script');
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places&loading=async&callback=initMap`;
     script.async = true;
-    script.onload = () => {
+    script.defer = true;
+
+    // Define the callback function
+    window.initMap = () => {
       console.log('Google Maps loaded successfully');
       setIsMapLoaded(true);
     };
@@ -85,11 +88,16 @@ function App() {
 
     return () => {
       document.head.removeChild(script);
+      delete window.initMap;
     };
   }, []);
 
+  useEffect(() => {
+    logAnalyticsEvent('app_loaded');
+  }, []);
+
   const handleSignInClick = () => {
-    console.log('Sign in clicked');
+    logAnalyticsEvent('sign_in_started');
     setShowAuthModal(true);
   };
 
@@ -99,7 +107,11 @@ function App() {
   };
 
   const handleLocationSelect = useCallback((location) => {
-    console.log('Location selected:', location);
+    logAnalyticsEvent('location_selected', {
+      lat: location.lat,
+      lng: location.lng,
+      fromSearch: location.fromSearch || false
+    });
     setSelectedLocation(location);
   }, []);
 
@@ -124,6 +136,15 @@ function App() {
       fromSearch: true
     }, map);
   }, [map, userLocation, handleLocationSelect]);
+
+  const handleAuthSuccess = () => {
+    logAnalyticsEvent('login_success');
+    handleModalClose();
+  };
+
+  const handleSignOut = () => {
+    logAnalyticsEvent('user_signed_out');
+  };
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -185,12 +206,12 @@ function App() {
             >
               <div style={styles.authContainer}>
                 <EmailSignIn 
-                  onSuccess={handleModalClose} 
+                  onSuccess={handleAuthSuccess} 
                   setUser={setUser}
                 />
                 <div style={styles.divider} />
                 <GoogleSignIn 
-                  onSuccess={handleModalClose}
+                  onSuccess={handleAuthSuccess}
                   setUser={setUser}
                 />
               </div>
