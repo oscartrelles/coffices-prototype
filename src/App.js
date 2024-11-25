@@ -145,6 +145,7 @@ function App() {
             <Header 
               user={user} 
               onSignInClick={handleSignInClick} 
+              setUser={setUser}
             />
             
             {isMapLoaded && (
@@ -183,9 +184,15 @@ function App() {
               onClose={handleModalClose}
             >
               <div style={styles.authContainer}>
-                <EmailSignIn onSuccess={handleModalClose} />
+                <EmailSignIn 
+                  onSuccess={handleModalClose} 
+                  setUser={setUser}
+                />
                 <div style={styles.divider} />
-                <GoogleSignIn onSuccess={handleModalClose} />
+                <GoogleSignIn 
+                  onSuccess={handleModalClose}
+                  setUser={setUser}
+                />
               </div>
             </Modal>
           </>

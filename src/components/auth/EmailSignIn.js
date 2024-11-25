@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { auth } from '../../firebaseConfig';
 import { 
   signInWithEmailAndPassword,
@@ -8,7 +8,7 @@ import {
 } from 'firebase/auth';
 import colors from '../../styles/colors';
 
-const EmailSignIn = () => {
+const EmailSignIn = ({ onSuccess, setUser }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -17,21 +17,41 @@ const EmailSignIn = () => {
   const [resetSent, setResetSent] = useState(false);
   const [showResetForm, setShowResetForm] = useState(false);
 
+  useEffect(() => {
+    console.log('Auth state:', auth.currentUser);
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     
+    console.log('Attempting sign in/up:', { 
+      isSignUp, 
+      email, 
+      passwordLength: password.length 
+    });
+    
     try {
       if (isSignUp) {
+        console.log('Creating new user...');
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         
+        console.log('User created, updating profile...');
         await updateProfile(userCredential.user, {
           displayName: name
         });
+        console.log('Profile updated successfully');
+        setUser(userCredential.user);
+        onSuccess?.();
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        console.log('Signing in existing user...');
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        console.log('Sign in successful:', result.user.email);
+        setUser(result.user);
+        onSuccess?.();
       }
     } catch (err) {
+      console.error('Auth error:', err);
       setError(err.message);
     }
   };

@@ -3,10 +3,11 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import colors from '../styles/colors';
 
-function Header({ user, onSignInClick }) {
+function Header({ user, onSignInClick, setUser }) {
   const handleSignOut = async () => {
     try {
       await signOut(auth);
+      setUser(null);
       console.log('User signed out successfully');
     } catch (error) {
       console.error('Error signing out:', error);
