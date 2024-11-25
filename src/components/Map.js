@@ -551,16 +551,17 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
     }
   }, [selectedLocation, mapInstance, searchNearby]);
 
-  // Update handleClose function
+  // Add state for animation
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Update handleClose
   const handleClose = useCallback(() => {
-    console.log('Closing details pane');
-    setSelectedShop(null);  // This should hide the bottom pane
-    
-    // Reset all markers to their default style
-    Object.values(markersRef.current).forEach(marker => {
-      marker.setIcon(marker.hasRatings ? markerStyles.rated : markerStyles.default);
-    });
-  }, [markerStyles]);
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      setSelectedShop(null);
+    }, 300);
+  }, []);
 
   // Add this ref to track if we've done the initial search
   const initialSearchDoneRef = useRef(false);
@@ -616,15 +617,34 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
         }} 
       />
 
-      {selectedShop && (
+      {(selectedShop || isClosing) && (
         <Box sx={{
           position: 'absolute',
-          bottom: 0,
+          bottom: '48px',
           left: 0,
           right: 0,
           backgroundColor: colors.background.paper,
-          padding: '0px',
-          zIndex: 1000
+          zIndex: 1000,
+          transform: 'translateY(100%)',
+          animation: selectedShop && !isClosing ? 'slideIn 0.3s ease-out forwards' : 'none',
+          transition: 'transform 0.3s ease-out',
+          '@keyframes slideIn': {
+            '0%': {
+              transform: 'translateY(100%)'
+            },
+            '100%': {
+              transform: 'translateY(0)'
+            }
+          },
+          '@media (min-width: 768px)': {
+            left: '20px',
+            right: 'auto',
+            bottom: '52px',
+            width: '300px',
+            borderRadius: '12px',
+            maxHeight: '400px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+          }
         }}>
           <PlaceDetails 
             place={selectedShop} 

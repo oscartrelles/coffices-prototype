@@ -199,6 +199,12 @@ const styles = {
   rating: {
     '& .MuiRating-icon': {
       marginRight: '-2px',
+    },
+    '& .MuiRating-iconFilled': {
+      color: colors.primary.main,
+    },
+    '& .MuiRating-iconHover': {
+      color: colors.primary.light,
     }
   },
 };
