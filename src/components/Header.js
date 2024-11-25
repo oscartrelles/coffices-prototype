@@ -35,7 +35,7 @@ function Header({ user, onSignInClick, setUser }) {
         {user && (
           <div style={styles.userInfo}>
             <span style={styles.dot} />
-            <span style={styles.userName}>Welcome back, {displayName}</span>
+            <span style={styles.userName}>Hi, {displayName}!</span>
           </div>
         )}
         <button
@@ -63,6 +63,10 @@ const styles = {
     justifyContent: 'space-between',
     padding: '0 16px',
     zIndex: 1000,
+    '@supports (-webkit-touch-callout: none)': {
+      flexWrap: 'nowrap',
+      minHeight: '60px'
+    }
   },
   leftSection: {
     display: 'flex',
@@ -79,6 +83,10 @@ const styles = {
     fontSize: '24px',
     fontWeight: '600',
     color: colors.text.primary,
+    whiteSpace: 'nowrap',
+    '@media (max-width: 380px)': {
+      fontSize: '20px',
+    }
   },
   greeting: {
     fontSize: '14px',
@@ -91,6 +99,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
+    overflow: 'hidden',
   },
   dot: {
     width: '8px',
@@ -101,12 +110,16 @@ const styles = {
   userName: {
     fontSize: '14px',
     color: colors.text.secondary,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: '120px',
     '@media (max-width: 600px)': {
       display: 'none', // Hide username on small screens
-    },
+    }
   },
   authButton: {
-    padding: '8px 16px',
+    padding: '8px 12px',
     backgroundColor: colors.background.paper,
     color: colors.text.primary,
     border: `1px solid ${colors.border}`,
@@ -115,8 +128,10 @@ const styles = {
     fontSize: '14px',
     fontWeight: '500',
     transition: 'all 0.2s ease',
-    ':hover': {
-      backgroundColor: colors.background.main,
+    whiteSpace: 'nowrap',
+    minWidth: '80px',
+    '@media (max-width: 380px)': {
+      padding: '6px 10px',
     }
   }
 };

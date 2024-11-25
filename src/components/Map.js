@@ -629,9 +629,14 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
           maxHeight: 'calc(70vh - 48px)',
           display: 'flex',
           flexDirection: 'column',
+          transform: (selectedShop && !isClosing) ? 'translateY(0)' : 'translateY(100%)',
+          transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          // iOS specific adjustments
           '@supports (-webkit-touch-callout: none)': {
             bottom: 'calc(48px + env(safe-area-inset-bottom))',
-            maxHeight: 'calc(70vh - 48px - env(safe-area-inset-bottom))'
+            paddingBottom: 'env(safe-area-inset-bottom)',
+            maxHeight: 'calc(70vh - 48px - env(safe-area-inset-bottom) + 34px)',
+            marginBottom: '34px',
           },
           '@media (min-width: 768px)': {
             left: '20px',
@@ -640,7 +645,10 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
             width: '300px',
             borderRadius: '12px',
             maxHeight: '400px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            transform: (selectedShop && !isClosing) ? 'translateY(0)' : 'translateY(20px)',
+            opacity: (selectedShop && !isClosing) ? 1 : 0,
+            transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }
         }}>
           <PlaceDetails 
