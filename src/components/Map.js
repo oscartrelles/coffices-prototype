@@ -624,17 +624,14 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
           left: 0,
           right: 0,
           backgroundColor: colors.background.paper,
+          padding: '0px',
           zIndex: 1000,
-          transform: 'translateY(100%)',
-          animation: selectedShop && !isClosing ? 'slideIn 0.3s ease-out forwards' : 'none',
-          transition: 'transform 0.3s ease-out',
-          '@keyframes slideIn': {
-            '0%': {
-              transform: 'translateY(100%)'
-            },
-            '100%': {
-              transform: 'translateY(0)'
-            }
+          maxHeight: 'calc(70vh - 48px)',
+          display: 'flex',
+          flexDirection: 'column',
+          '@supports (-webkit-touch-callout: none)': {
+            bottom: 'calc(48px + env(safe-area-inset-bottom))',
+            maxHeight: 'calc(70vh - 48px - env(safe-area-inset-bottom))'
           },
           '@media (min-width: 768px)': {
             left: '20px',
