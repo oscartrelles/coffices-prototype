@@ -35,7 +35,7 @@ export const signInWithGoogle = async () => {
     console.log('Starting Google sign-in process...');
     await signInWithRedirect(auth, googleProvider);
   } catch (error) {
-    console.error('Sign-in error:', error);
+    console.error('Sign-in error:', error.message);
     throw error;
   }
 };
@@ -48,7 +48,7 @@ export const handleRedirectResult = async () => {
       return result;
     }
   } catch (error) {
-    console.error('Redirect error:', error);
+    console.error('Redirect error:', error.message);
     throw error;
   }
 };
@@ -59,7 +59,7 @@ export const signInWithEmail = async (email, password) => {
     console.log('Email sign-in successful:', result.user.email);
     return result;
   } catch (error) {
-    console.error('Sign-in error:', error);
+    console.error('Sign-in error:', error.message);
     throw error;
   }
 };
@@ -70,7 +70,7 @@ export const signUpWithEmail = async (email, password) => {
     console.log('Email sign-up successful:', result.user.email);
     return result;
   } catch (error) {
-    console.error('Sign-up error:', error);
+    console.error('Sign-up error:', error.message);
     throw error;
   }
 };

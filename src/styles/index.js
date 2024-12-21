@@ -49,6 +49,24 @@ export const icons = {
     width: '20px',
     height: '20px',
   },
+  ratings: {
+    wifi: {
+      color: colors.primary.main,
+      marginRight: '4px',
+    },
+    power: {
+      color: colors.status.warning,
+      marginRight: '4px',
+    },
+    noise: {
+      color: colors.status.info,
+      marginRight: '4px',
+    },
+    coffee: {
+      color: colors.status.success,
+      marginRight: '4px',
+    },
+  },
   social: {
     color: colors.text.secondary,
     width: '24px',
@@ -114,22 +132,32 @@ export const components = {
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       maxWidth: '120px',
-      '@media (maxWidth: 600px)': {
-        display: 'none',
-      }
     },
     authButton: {
       padding: '8px 16px',
-      backgroundColor: colors.background.paper,
-      color: colors.text.primary,
-      border: `1px solid ${colors.border}`,
+      backgroundColor: colors.primary.main,
+      color: colors.background.paper,
+      border: 'none',
       borderRadius: '4px',
-      cursor: 'pointer',
       fontSize: '14px',
       fontWeight: '500',
-      transition: 'all 0.2s ease',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s',
       '&:hover': {
-        backgroundColor: colors.background.main,
+        backgroundColor: colors.primary.dark,
+      }
+    },
+    signOutButton: {
+      padding: '8px 16px',
+      backgroundColor: 'transparent',
+      color: colors.text.secondary,
+      border: 'none',
+      borderRadius: '4px',
+      fontSize: '14px',
+      cursor: 'pointer',
+      transition: 'color 0.2s',
+      '&:hover': {
+        color: colors.text.primary,
       }
     }
   },
@@ -144,9 +172,6 @@ export const components = {
       borderTop: `1px solid ${colors.border}`,
       padding: '12px 16px',
       zIndex: 1000,
-      '@supports (WebkitTouchCallout: none)': {
-        paddingBottom: 'calc(12px + env(safe-area-inset-bottom))'
-      }
     },
     content: {
       display: 'flex',
@@ -165,14 +190,6 @@ export const components = {
       gap: '16px',
       alignItems: 'center',
     },
-    socialIcon: {
-      color: colors.text.secondary,
-      cursor: 'pointer',
-      transition: 'color 0.2s ease',
-      '&:hover': {
-        color: colors.text.primary,
-      }
-    }
   },
 
   modal: {
@@ -195,10 +212,6 @@ export const components = {
       width: '90%',
       maxWidth: '400px',
       position: 'relative',
-      '@media (maxWidth: 480px)': {
-        width: '95%',
-        padding: '20px',
-      }
     },
     closeButton: {
       position: 'absolute',
@@ -213,89 +226,78 @@ export const components = {
         color: colors.text.primary,
       }
     },
-    title: {
-      ...typography.title,
-      marginBottom: '20px',
-      textAlign: 'center',
-    },
-    content: {
-      width: '100%',
-    }
   },
 
-  searchBar: {
+  emailSignIn: {
     container: {
-      position: 'absolute',
-      top: '65px',
       width: '100%',
-      maxWidth: '600px',
-      backgroundColor: colors.background.paper,
-      borderRadius: '24px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-      zIndex: 1000,
     },
-    inputWrapper: {
+    title: {
+      textAlign: 'center',
+      color: colors.text.primary,
+      margin: '0 0 20px 0',
+      fontSize: '24px',
+      fontWeight: '500',
+    },
+    form: {
       display: 'flex',
-      alignItems: 'center',
-      padding: '8px 16px',
-      gap: '8px',
+      flexDirection: 'column',
+      gap: '12px',
     },
     input: {
-      flex: 1,
-      border: 'none',
-      outline: 'none',
-      fontSize: '16px',
-      color: colors.text.primary,
-      backgroundColor: 'transparent',
-      '&::placeholder': {
-        color: colors.text.secondary,
+      padding: '10px 12px',
+      borderRadius: '4px',
+      border: `1px solid ${colors.border}`,
+      fontSize: '14px',
+      transition: 'border-color 0.2s',
+      ':focus': {
+        borderColor: colors.primary.main,
+        outline: 'none',
       }
     },
-    locationButton: {
+    primaryButton: {
+      padding: '10px 12px',
+      backgroundColor: colors.primary.main,
+      color: colors.background.paper,
+      border: 'none',
+      borderRadius: '4px',
+      fontSize: '14px',
+      fontWeight: '500',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s',
+      ':hover': {
+        backgroundColor: colors.primary.dark,
+      }
+    },
+    buttonGroup: {
       display: 'flex',
+      flexDirection: 'column',
       alignItems: 'center',
-      justifyContent: 'center',
-      padding: '8px',
+      gap: '8px',
+      marginTop: '12px',
+    },
+    linkButton: {
+      background: 'none',
       border: 'none',
-      backgroundColor: 'transparent',
-      cursor: 'pointer',
       color: colors.primary.main,
-      borderRadius: '50%',
-      transition: 'background-color 0.2s ease',
-      '&:hover': {
-        backgroundColor: colors.background.main,
-      }
-    },
-    suggestions: {
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      right: 0,
-      marginTop: '8px',
-      backgroundColor: colors.background.paper,
-      borderRadius: '12px',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-      maxHeight: '300px',
-      overflowY: 'auto',
-      zIndex: 1000,
-    },
-    suggestion: {
-      padding: '12px 16px',
       cursor: 'pointer',
-      transition: 'background-color 0.2s ease',
-      '&:hover': {
-        backgroundColor: colors.background.main,
+      fontSize: '13px',
+      padding: '4px',
+      ':hover': {
+        textDecoration: 'underline',
       }
     },
-    suggestionText: {
-      ...typography.body,
-      color: colors.text.primary,
+    error: {
+      color: colors.status.error,
+      textAlign: 'center',
+      marginTop: '12px',
+      fontSize: '13px',
     },
-    suggestionSecondary: {
-      ...typography.body,
-      color: colors.text.secondary,
-      fontSize: '12px',
-      marginTop: '4px',
+    successMessage: {
+      color: colors.status.success,
+      textAlign: 'center',
+      marginBottom: '16px',
+      fontSize: '14px',
     }
   },
 
@@ -378,6 +380,84 @@ export const components = {
       textAlign: 'center',
       color: colors.text.secondary,
       padding: '16px',
+    }
+  },
+
+  searchBar: {
+    container: {
+      position: 'absolute',
+      top: '65px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      width: '90%',
+      maxWidth: '600px',
+      backgroundColor: colors.background.paper,
+      borderRadius: '24px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+      zIndex: 1000,
+    },
+    inputWrapper: {
+      display: 'flex',
+      alignItems: 'center',
+      padding: '8px 16px',
+      gap: '8px',
+    },
+    input: {
+      flex: 1,
+      border: 'none',
+      outline: 'none',
+      fontSize: '16px',
+      color: colors.text.primary,
+      backgroundColor: 'transparent',
+      '&::placeholder': {
+        color: colors.text.secondary,
+      }
+    },
+    locationButton: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '8px',
+      border: 'none',
+      backgroundColor: 'transparent',
+      cursor: 'pointer',
+      color: colors.primary.main,
+      borderRadius: '50%',
+      transition: 'background-color 0.2s ease',
+      '&:hover': {
+        backgroundColor: colors.background.main,
+      }
+    },
+    suggestions: {
+      position: 'absolute',
+      top: '100%',
+      left: 0,
+      right: 0,
+      marginTop: '8px',
+      backgroundColor: colors.background.paper,
+      borderRadius: '12px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+      maxHeight: '300px',
+      overflowY: 'auto',
+      zIndex: 1000,
+    },
+    suggestion: {
+      padding: '12px 16px',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s ease',
+      '&:hover': {
+        backgroundColor: colors.background.main,
+      }
+    },
+    suggestionText: {
+      ...typography.body,
+      color: colors.text.primary,
+    },
+    suggestionSecondary: {
+      ...typography.body,
+      color: colors.text.secondary,
+      fontSize: '12px',
+      marginTop: '4px',
     }
   },
 }; 

@@ -129,7 +129,7 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
   const getPlacesRequest = (location) => ({
     location: location,
     radius: getSearchRadius(),
-    type: ['cafe', 'restaurant', 'bar', 'bakery', 'food'],  // Cast a wider net for establishment types
+   // type: ['cafe', 'restaurant', 'bar', 'bakery', 'food'],  // Cast a wider net for establishment types
     keyword: 'coffee cafe wifi laptop'  // Expanded workspace-related terms
     //rankBy: window.google.maps.places.RankBy.RATING,
     // Note: Using both radius and rankBy together ensures we get more results
@@ -605,6 +605,77 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
       setCurrentLocation(geoLocation);
     }
   }, [geoLocation]);
+
+  // Add state for the ripple effect
+  const [ripple, setRipple] = useState(null);
+
+  // Update the effect to create/update the user location marker
+  useEffect(() => {
+    if (!mapInstance || !currentLocation) return;
+
+    // Create the marker for the user's location
+    const marker = new window.google.maps.Marker({
+      position: currentLocation,
+      map: mapInstance,
+      icon: {
+        path: window.google.maps.SymbolPath.CIRCLE,
+        fillColor: colors.primary.main,
+        fillOpacity: 1,
+        scale: 6,
+        strokeColor: colors.background.paper,
+        strokeWeight: 2,
+      },
+      zIndex: 1000, // Ensure it's on top of other markers
+    });
+
+    // Set the ripple effect when the user's location is updated
+    if (ripple) {
+      ripple.setMap(null); // Remove the previous ripple
+    }
+
+    // Create a new ripple effect
+    const rippleEffect = new window.google.maps.Circle({
+      strokeColor: colors.primary.main,
+      strokeOpacity: 0.8,
+      strokeWeight: 2,
+      fillColor: colors.primary.main,
+      fillOpacity: 0.35,
+      map: mapInstance,
+      center: currentLocation,
+      radius: 0, // Start with a radius of 0
+    });
+
+    // Animate the ripple effect continuously
+    const animateRipple = () => {
+      let radius = 0;
+      const maxRadius = 50; // Maximum radius for the ripple
+      const animationSpeed = 50; // Speed of the animation
+
+      const expandRipple = () => {
+        radius += 2; // Increase the radius
+        rippleEffect.setRadius(radius);
+        if (radius < maxRadius) {
+          setTimeout(expandRipple, animationSpeed); // Continue expanding
+        } else {
+          // Reset the ripple effect
+          radius = 0; // Reset radius
+          rippleEffect.setRadius(radius);
+          setTimeout(expandRipple, animationSpeed); // Restart the animation
+        }
+      };
+
+      expandRipple(); // Start the ripple animation
+    };
+
+    animateRipple();
+    setRipple(rippleEffect); // Store the ripple effect in state
+
+    // Clean up function to remove the marker and ripple when the component unmounts
+    return () => {
+      marker.setMap(null);
+      rippleEffect.setMap(null);
+    };
+  }, [mapInstance, currentLocation]);
 
   // Add this return statement at the end of the Map component
   return (
