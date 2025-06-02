@@ -11,7 +11,7 @@ function Footer() {
     <footer style={components.footer.container}>
       <div style={components.footer.content}>
         <div style={components.footer.copyright}>
-          © {currentYear} All rights reserved.
+          © {currentYear} All rights reserved. Built in Málaga, Spain.
         </div>
         <div style={components.footer.socialLinks}>
           <InstagramIcon style={components.footer.socialIcon} />
