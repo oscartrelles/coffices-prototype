@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, handleRedirectResult, logAnalyticsEvent } from './firebaseConfig';
 import EmailSignIn from './components/auth/EmailSignIn';
@@ -12,6 +12,7 @@ import SearchBar from './components/SearchBar';
 import Map from './components/Map';
 import PlaceDetails from './components/PlaceDetails';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import Admin from './components/Admin';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -238,5 +239,15 @@ const styles = {
   }
 };
 
-export default App;
+function MainRouter() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/*" element={<App />} />
+        <Route path="/admin" element={<Admin />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
 
+export default MainRouter;
