@@ -14,6 +14,15 @@ You may also see any lint errors in the console.
 
 Gets the app ready for a production deploy.
 
+The development public server is:
+https://find-a-coffice.web.app
+
+Dependencies:
+
+Google Cloud: https://console.cloud.google.com/apis/api/cloudaicompanion.googleapis.com/metrics?inv=1&invt=AbzUGA&project=find-a-coffice 
+
+Firebase: https://console.firebase.google.com/project/find-a-coffice/overview
+
 ---------------------------
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

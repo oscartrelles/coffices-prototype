@@ -2,16 +2,28 @@ import { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, handleRedirectResult, logAnalyticsEvent } from './firebaseConfig';
+
 import EmailSignIn from './components/auth/EmailSignIn';
 import GoogleSignIn from './components/auth/GoogleSignIn';
+
 import Modal from './components/Modal';
+
 import Header from './components/Header';
 import Footer from './components/Footer';
+
 import Box from '@mui/material/Box';
+
 import SearchBar from './components/SearchBar';
+
 import Map from './components/Map';
+
 import PlaceDetails from './components/PlaceDetails';
 import LoadingSpinner from './components/common/LoadingSpinner';
+<<<<<<< Updated upstream
+=======
+
+import Admin from './components/Admin';
+>>>>>>> Stashed changes
 
 function App() {
   const [user, setUser] = useState(null);
@@ -148,8 +160,7 @@ function App() {
 
   if (isLoading) return <LoadingSpinner />;
 
-  return (
-    <BrowserRouter>
+  return (    
       <Box sx={{ 
         display: 'flex', 
         flexDirection: 'column', 
@@ -219,7 +230,7 @@ function App() {
           </>
         )}
       </Box>
-    </BrowserRouter>
+    
   );
 }
 
@@ -240,3 +251,18 @@ const styles = {
 
 export default App;
 
+<<<<<<< Updated upstream
+=======
+// function MainRouter() {
+//   return (
+//     <BrowserRouter>
+//       <Routes>
+//         <Route path="/*" element={<App />} />
+//         <Route path="/admin" element={<Admin />} />
+//       </Routes>
+//     </BrowserRouter>
+//   );
+// }
+
+export default MainRouter;
+>>>>>>> Stashed changes
