@@ -19,11 +19,6 @@ import Map from './components/Map';
 
 import PlaceDetails from './components/PlaceDetails';
 import LoadingSpinner from './components/common/LoadingSpinner';
-<<<<<<< Updated upstream
-=======
-
-import Admin from './components/Admin';
->>>>>>> Stashed changes
 
 function App() {
   const [user, setUser] = useState(null);
@@ -251,8 +246,7 @@ const styles = {
 
 export default App;
 
-<<<<<<< Updated upstream
-=======
+
 // function MainRouter() {
 //   return (
 //     <BrowserRouter>
@@ -264,5 +258,5 @@ export default App;
 //   );
 // }
 
-export default MainRouter;
->>>>>>> Stashed changes
+// export default MainRouter;
+

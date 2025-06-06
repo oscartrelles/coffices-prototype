@@ -10,9 +10,9 @@ import { collection } from "firebase/firestore";
 import { getDocs } from "firebase/firestore";
 
 // Admin functions
-import admin from 'firebase-admin';
-const admin = require('firebase-admin');
+// import admin from 'firebase-admin';
 
+// const admin = require('firebase-admin');
 
 const Admin = () => {
   const [users, setUsers] = useState([]);
