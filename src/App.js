@@ -245,19 +245,15 @@ const styles = {
   }
 };
 
-export default App;
+function MainRouter() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/*" element={<App />} />
+        <Route path="/admin" element={<Admin />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
 
-
-// function MainRouter() {
-//   return (
-//     <BrowserRouter>
-//       <Routes>
-//         <Route path="/*" element={<App />} />
-//         <Route path="/admin" element={<Admin />} />
-//       </Routes>
-//     </BrowserRouter>
-//   );
-// }
-
-// export default MainRouter;
-
+export default MainRouter;
