@@ -21,12 +21,9 @@ const Admin = () => {
   const rowbgcolor = ['white', 'lightgrey'];
 
   useEffect(() => {
-
     // TODO: Check user is logged in.
     // TODO: Check user is an admin.
-
-    // Fetch users, cafes, and ratings data    
-    const fetchUsers = async () => {
+    const fetchUsers = async () => {      
       const response = await fetch('/api/users'); // TODO Replace getRecentUsers();
       const data = await response.json();
       setUsers(data);
