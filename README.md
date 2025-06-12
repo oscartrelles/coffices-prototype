@@ -1,5 +1,7 @@
 # Coffice App
 
+A react application, to help people find a good workplace for the day, with others, and great coffee and wifi.
+
 ## Project Setup 
 
 ### `npm install`
@@ -24,6 +26,7 @@ Google Cloud: https://console.cloud.google.com/apis/api/cloudaicompanion.googlea
 Firebase: https://console.firebase.google.com/project/find-a-coffice/overview
 
 ## Architecture and Components
+
 The user can login with Google OAuth and via Email.
 They can also use it without being logged in. 
 Additional Admin functionality available to those with admin rights.
@@ -32,19 +35,44 @@ Additional Admin functionality available to those with admin rights.
 Listed in page visible order.
 
 Header.js  
-SearchBar.js    - Find a coffice by typing into the search bar.
+SearchBar.js    - Find a coffice by typing into the search bar. 
+                - A drop down of results is displayed, and each is selectable. 
+                - On selecting the map centres on the venue. Displays its icon, and pops-up PlaceDetails.
 
 Map.js          - View all the coffices nearby your current location indicated by a flashing icon.
 PlaceDetails.js - When a map pin is clicked we see the PlaceDetails
 
 Modal.js  
-Place.js        - For deep linking.
-RatingForm.js  
+Place.js        - For deep linkcd ing.
+RatingForm.js   - To rate you need to be signed in.
 
 Footer.js       - Social and other connectivity.
 
 Admin.js        - See how many users, coffices, and ratings have been added, and edit them.
 ---------------------------
+
+## Datastorage 
+
+We are using Firebase's, Cloud Firestore.
+
+We do not seem to have an export of the tables at the moment, so describing them here.
+
+### coffices table
+
+In addition to documentId we have the following fields
+
+coffee 5              (number)
+noise 3               (number)
+wifi 1
+power 1 (number)
+
+comment "it's great"  (string)
+
+placeId "ChIJ2b4PJZT3cg0Rk-a53w_m-xc" (string)
+timestamp "2025-02-07T18:44:39.401Z" (string)
+userId "Lzk2Z76GodfhIikKkRZNR1QsshW2" (string)
+
+### ratings table
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
