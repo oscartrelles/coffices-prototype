@@ -1,4 +1,4 @@
-# Getting Started with Create React App
+# Coffice App
 
 ## Project Setup 
 
@@ -23,6 +23,27 @@ Google Cloud: https://console.cloud.google.com/apis/api/cloudaicompanion.googlea
 
 Firebase: https://console.firebase.google.com/project/find-a-coffice/overview
 
+## Architecture and Components
+The user can login with Google OAuth and via Email.
+They can also use it without being logged in. 
+Additional Admin functionality available to those with admin rights.
+
+(See: src/components)
+Listed in page visible order.
+
+Header.js  
+SearchBar.js    - Find a coffice by typing into the search bar.
+
+Map.js          - View all the coffices nearby your current location indicated by a flashing icon.
+PlaceDetails.js - When a map pin is clicked we see the PlaceDetails
+
+Modal.js  
+Place.js        - For deep linking.
+RatingForm.js  
+
+Footer.js       - Social and other connectivity.
+
+Admin.js        - See how many users, coffices, and ratings have been added, and edit them.
 ---------------------------
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
