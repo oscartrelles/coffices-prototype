@@ -14,6 +14,7 @@ import WifiIcon from '@mui/icons-material/Wifi';
 import PowerIcon from '@mui/icons-material/Power';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import CoffeeIcon from '@mui/icons-material/Coffee';
+import ShareIcon from '@mui/icons-material/Share';
 import { keyframes } from '@mui/system';
 
 // Define the blur animation
@@ -214,6 +215,22 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
               </>
             )}
           </div>
+
+          <div style={styles.share}>
+            <Tooltip title="Share this Coffice" arrow>
+              <IconButton 
+                onClick={() => navigator.share({
+                  title: place.name,
+                  text: `Check out this Coffice: ${place.name}`,
+                  url: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`
+                })}
+                sx={{ color: colors.text.secondary }}
+              >
+                <ShareIcon />
+              </IconButton>
+            </Tooltip>
+          </div>
+
         </div>
       </Box>
 
@@ -300,6 +317,7 @@ const styles = {
     margin: '0 4px',
     color: colors.text.disabled,
   },
+  share: {},
   starIcon: {
     color: colors.text.secondary,
     fontSize: '20px',

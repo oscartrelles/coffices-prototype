@@ -11,12 +11,13 @@ import { getDocs } from "firebase/firestore";
 
 // Admin functions
 // import admin from 'firebase-admin';
-
 // const admin = require('firebase-admin');
+
+// TODO: Check current user is: info@oscartrelles.com or "hello@ianmoss.com"
 
 const Admin = () => {
   const [users, setUsers] = useState([]);
-  const [cafes, setCafes] = useState([]);
+  const [coffices, setCoffices] = useState([]);
   const [ratings, setRatings] = useState([]);
   const rowbgcolor = ['white', 'lightgrey'];
 
@@ -29,10 +30,13 @@ const Admin = () => {
       setUsers(data);
     };
 
-    const fetchCafes = async () => {
-      const response = await fetch('/api/cafes'); // TODO Replace getRecentCafes();
-      const data = await response.json();
-      setCafes(data);
+    const fetchCoffices = async () => {
+      const ratingsCollection = collection(db, 'coffices');
+      const ratingsSnapshot = await getDocs(ratingsCollection);      
+      setCoffices(ratingsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })));      
     };
 
     const fetchRatings = async () => {      
@@ -45,7 +49,7 @@ const Admin = () => {
     };
 
     fetchUsers();
-    fetchCafes();
+    fetchCoffices();
     fetchRatings();
   }, []);
 
@@ -64,11 +68,15 @@ const Admin = () => {
       </section>
 
       <section>
-        <h2>Cafes</h2>
+        <h2>Coffices</h2>
         <ul>
-          {cafes.map((cafe) => (
+          {coffices.map((cafe) => (
             <li key={cafe.id}>
-              {cafe.name} - {cafe.location}
+              {cafe.name} - {
+                cafe.location && typeof cafe.location === 'object' && '_lat' in cafe.location && '_long' in cafe.location
+                  ? `(${cafe.location._lat}, ${cafe.location._long})`
+                  : String(cafe.location)
+              }
             </li>
           ))}
         </ul>

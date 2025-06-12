@@ -425,6 +425,7 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
           });
         });
         
+        // TODO-IM: Calculate averages after a new rating, and update the coffice average values
         // Calculate averages
         const finalAverages = {};
         Object.keys(totals).forEach(key => {

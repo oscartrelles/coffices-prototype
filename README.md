@@ -43,7 +43,7 @@ Map.js          - View all the coffices nearby your current location indicated b
 PlaceDetails.js - When a map pin is clicked we see the PlaceDetails
 
 Modal.js  
-Place.js        - For deep linkcd ing.
+Place.js        - For deep linking.
 RatingForm.js   - To rate you need to be signed in.
 
 Footer.js       - Social and other connectivity.
@@ -57,7 +57,7 @@ We are using Firebase's, Cloud Firestore.
 
 We do not seem to have an export of the tables at the moment, so describing them here.
 
-### coffices table
+### "coffices" table
 
 In addition to documentId we have the following fields
 
@@ -72,7 +72,7 @@ placeId "ChIJ2b4PJZT3cg0Rk-a53w_m-xc" (string)
 timestamp "2025-02-07T18:44:39.401Z" (string)
 userId "Lzk2Z76GodfhIikKkRZNR1QsshW2" (string)
 
-### ratings table
+### "ratings" table
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
