@@ -146,8 +146,22 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
                   fontSize: '1.2rem'
                 }} 
               />
-            </Tooltip>
+            </Tooltip>            
           )}
+          <div style={styles.share}>
+            <Tooltip title="Share this Coffice" arrow>
+              <IconButton 
+                onClick={() => navigator.share({
+                  title: place.name,
+                  text: `Check out this Coffice: ${place.name}`,
+                  url: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`
+                })}
+                sx={{ color: colors.text.secondary }}
+              >
+                <ShareIcon />
+              </IconButton>
+            </Tooltip>
+          </div>
         </Box>
 
         <div style={styles.details}>
@@ -215,22 +229,7 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
               </>
             )}
           </div>
-
-          <div style={styles.share}>
-            <Tooltip title="Share this Coffice" arrow>
-              <IconButton 
-                onClick={() => navigator.share({
-                  title: place.name,
-                  text: `Check out this Coffice: ${place.name}`,
-                  url: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`
-                })}
-                sx={{ color: colors.text.secondary }}
-              >
-                <ShareIcon />
-              </IconButton>
-            </Tooltip>
-          </div>
-
+        
         </div>
       </Box>
 
@@ -317,7 +316,11 @@ const styles = {
     margin: '0 4px',
     color: colors.text.disabled,
   },
-  share: {},
+  share: {
+    display: 'flex',
+    alignItems: 'center',
+    marginLeft: 4, // optional: add a small left margin for spacing
+  },
   starIcon: {
     color: colors.text.secondary,
     fontSize: '20px',
