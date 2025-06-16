@@ -81,7 +81,7 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick }) {
 
     // TODO:IM - compare the fields in selectedSuggestion with the fields in place below.
 
-    const cofficeFromSelectedSuggestion = getCoffice(selectedSuggestion.place_id);
+    const cofficeFromSelectedSuggestion = await getCoffice(selectedSuggestion.place_id);
     console.log('Coffice from selected suggestion:', cofficeFromSelectedSuggestion);
     // if already in the database we do not need to retrieve from API.
     if(cofficeFromSelectedSuggestion!=null)
@@ -131,6 +131,12 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick }) {
       ); //end getDetails call
     }
   };
+
+  // Returns true if the user is an admin
+  function isAdmin(user) {
+    const adminEmails = ['info@oscartrelles.com', 'hello@ianmoss.com'];
+    return user && adminEmails.includes(user.email);
+  }
 
   return (
     <div style={components.searchBar.container}>

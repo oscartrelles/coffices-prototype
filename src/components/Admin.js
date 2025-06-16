@@ -13,7 +13,7 @@ import { getDocs } from "firebase/firestore";
 // import admin from 'firebase-admin';
 // const admin = require('firebase-admin');
 
-// TODO: Check current user is: info@oscartrelles.com or "hello@ianmoss.com"
+// TODO: Check current user identifier is: info@oscartrelles.com or hello@ianmoss.com
 
 const Admin = () => {
   const [users, setUsers] = useState([]);
