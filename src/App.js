@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, handleRedirectResult, logAnalyticsEvent } from './firebaseConfig';
 import EmailSignIn from './components/auth/EmailSignIn';
@@ -12,6 +12,7 @@ import SearchBar from './components/SearchBar';
 import Map from './components/Map';
 import PlaceDetails from './components/PlaceDetails';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import AdminInterface from './components/AdminInterface';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -27,7 +28,6 @@ function App() {
     const initializeApp = async () => {
       setIsLoading(true);
       try {
-        // Wait for auth state to be determined
         await new Promise(resolve => {
           const unsubscribe = auth.onAuthStateChanged((user) => {
             setUser(user);
@@ -36,7 +36,6 @@ function App() {
           });
         });
 
-        // Wait for geolocation if available
         if ("geolocation" in navigator) {
           await new Promise((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(
@@ -49,7 +48,7 @@ function App() {
               },
               (error) => {
                 console.error('Error getting location:', error);
-                resolve(); // Resolve anyway to continue app initialization
+                resolve();
               }
             );
           });
@@ -149,7 +148,10 @@ function App() {
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <BrowserRouter>
+    <Router>
+     <Routes>
+        <Route path="/admin" element={<AdminInterface />} />
+      </Routes>
       <Box sx={{ 
         display: 'flex', 
         flexDirection: 'column', 
@@ -219,7 +221,7 @@ function App() {
           </>
         )}
       </Box>
-    </BrowserRouter>
+    </Router>
   );
 }
 
