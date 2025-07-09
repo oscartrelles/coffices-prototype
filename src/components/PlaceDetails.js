@@ -260,6 +260,7 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
 
 const styles = {
   container: {
+    position: 'relative',
     padding: '12px',
     backgroundColor: colors.background.paper,
     borderTop: `1px solid ${colors.border}`,
@@ -268,6 +269,13 @@ const styles = {
     paddingBottom: 'calc(60px + env(safe-area-inset-bottom))',
     marginBottom: '0',
     overflow: 'hidden',
+    width: '500px',
+    margin: '0 auto',
+    '@media (max-width: 500px)': {
+      width: '100%',
+      minWidth: '100%',
+      maxWidth: '100%',
+    },
   },
   details: {
     display: 'flex',

@@ -187,7 +187,7 @@ export const components = {
     },
     socialLinks: {
       display: 'flex',
-      gap: '16px',
+      gap: '8px',
       alignItems: 'center',
     },
   },

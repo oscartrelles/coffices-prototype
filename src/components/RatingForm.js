@@ -148,10 +148,11 @@ function RatingForm({ placeId, userId, onSubmit, onCancel }) {
 
 const styles = {
   form: {
-    mt: 2,
-    p: 2,
     backgroundColor: colors.background.overlay,
-    borderRadius: 1,
+    padding: 2,
+    borderRadius: 2,
+    width: '100%',
+    mx: 'auto',
   },
   ratingsContainer: {
     justifyContent: 'space-between',

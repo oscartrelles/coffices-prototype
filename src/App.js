@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, BrowserRouter } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, handleRedirectResult, logAnalyticsEvent } from './firebaseConfig';
 import EmailSignIn from './components/auth/EmailSignIn';
@@ -148,80 +148,71 @@ function App() {
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <Router>
-     <Routes>
-        <Route path="/admin" element={<AdminInterface />} />
-      </Routes>
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        height: '100vh',
-        position: 'fixed',
-        width: '100%',
-        top: 0,
-        left: 0
-      }}>
-        {isLoading ? (
-          <LoadingSpinner />
-        ) : (
-          <>
-            <Header 
-              user={user} 
-              onSignInClick={handleSignInClick} 
-              setUser={setUser}
-            />
-            
-            {isMapLoaded && (
-              <>
-                <Box sx={{ 
-                  position: 'absolute', 
-                  top: '20px', 
-                  left: '50%', 
-                  transform: 'translateX(-50%)',
-                  zIndex: 1000,
-                  width: '90%',
-                  maxWidth: '600px'
-                }}>
-                  <SearchBar 
-                    onLocationSelect={handleLocationSelect}
-                    isMapLoaded={isMapLoaded}
-                    map={map}
-                    onLocationClick={handleLocationClick}
-                  />
-                </Box>
-                
-                <Map 
-                  user={user} 
-                  onSignInClick={handleSignInClick} 
-                  selectedLocation={selectedLocation}
-                  onMapInstance={setMap}
-                  onUserLocation={handleUserLocation}
+    <Box sx={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100vh',
+      position: 'fixed',
+      width: '100%',
+      top: 0,
+      left: 0
+    }}>
+      {isLoading ? (
+        <LoadingSpinner />
+      ) : (
+        <>
+          <Header 
+            user={user} 
+            onSignInClick={handleSignInClick} 
+            setUser={setUser}
+          />
+          {isMapLoaded && (
+            <>
+              <Box sx={{ 
+                position: 'absolute', 
+                top: '20px', 
+                left: '50%', 
+                transform: 'translateX(-50%)',
+                zIndex: 1000,
+                width: '90%',
+                maxWidth: '600px'
+              }}>
+                <SearchBar 
+                  onLocationSelect={handleLocationSelect}
+                  isMapLoaded={isMapLoaded}
+                  map={map}
+                  onLocationClick={handleLocationClick}
                 />
-              </>
-            )}
-            
-            <Footer />
-            
-            <Modal
-              open={showAuthModal}
-              onClose={handleModalClose}
-            >
-              <div style={styles.authContainer}>
-                <EmailSignIn 
-                  onSuccess={handleAuthSuccess} 
-                  setUser={setUser}
-                />
-                <div style={styles.divider} />
-                <GoogleSignIn 
-                  onSuccess={handleAuthSuccess}
-                  setUser={setUser}
-                />
-              </div>
-            </Modal>
-          </>
-        )}
-      </Box>
-    </Router>
+              </Box>
+              <Map 
+                user={user} 
+                onSignInClick={handleSignInClick} 
+                selectedLocation={selectedLocation}
+                onMapInstance={setMap}
+                onUserLocation={handleUserLocation}
+              />
+            </>
+          )}
+          <Footer />
+          <Modal
+            open={showAuthModal}
+            onClose={handleModalClose}
+          >
+            <div style={styles.authContainer}>
+              <EmailSignIn 
+                onSuccess={handleAuthSuccess} 
+                setUser={setUser}
+              />
+              <div style={styles.divider} />
+              <GoogleSignIn 
+                onSuccess={handleAuthSuccess}
+                setUser={setUser}
+              />
+            </div>
+          </Modal>
+        </>
+      )}
+    </Box>
   );
 }
 
@@ -240,5 +231,15 @@ const styles = {
   }
 };
 
-export default App;
+function MainRouter() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/*" element={<App />} />
+        <Route path="/hfdhghgghdhgdhgfgfh" element={<AdminInterface />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
 
+export default MainRouter;

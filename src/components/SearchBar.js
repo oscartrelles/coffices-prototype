@@ -21,7 +21,7 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick }) {
     service.getPlacePredictions(
       {
         input: value,
-        componentRestrictions: { country: 'ES' },
+        //componentRestrictions: { country: 'ES' },
         types: ['establishment', 'geocode']
       },
       (predictions, status) => {

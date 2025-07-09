@@ -1,8 +1,28 @@
 # Getting Started with Create React App
 
+## Project Setup 
+
+### `npm install`
+
+### `npm start`
+
+Runs the app in the development mode.\
+Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+You may also see any lint errors in the console.
+
+### `npm run build`
+
+Gets the app ready for a production deploy.
+
+---------------------------
+
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
 ## Available Scripts
+
+First; install with:
+
+### `npm install`
 
 In the project directory, you can run:
 

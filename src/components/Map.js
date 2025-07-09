@@ -619,13 +619,13 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
       map: mapInstance,
       icon: {
         path: window.google.maps.SymbolPath.CIRCLE,
-        fillColor: colors.primary.main,
+        fillColor: colors.status.info, // Use light sage
         fillOpacity: 1,
         scale: 6,
         strokeColor: colors.background.paper,
         strokeWeight: 2,
       },
-      zIndex: 1000, // Ensure it's on top of other markers
+      zIndex: 1, // Ensure it's under other markers
     });
 
     // Set the ripple effect when the user's location is updated
@@ -635,14 +635,15 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
 
     // Create a new ripple effect
     const rippleEffect = new window.google.maps.Circle({
-      strokeColor: colors.primary.main,
+      strokeColor: colors.status.info, // Use light sage
       strokeOpacity: 0.8,
       strokeWeight: 2,
-      fillColor: colors.primary.main,
+      fillColor: colors.status.info, // Use light sage
       fillOpacity: 0.35,
       map: mapInstance,
       center: currentLocation,
       radius: 0, // Start with a radius of 0
+      zIndex: 1, // Ensure it's under other markers
     });
 
     // Animate the ripple effect continuously
@@ -700,6 +701,7 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
           maxHeight: 'calc(70vh - 48px)',
           display: 'flex',
           flexDirection: 'column',
+          overflow: 'visible',
           transform: (selectedShop && !isClosing) ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           // iOS specific adjustments
@@ -713,9 +715,10 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
             left: '20px',
             right: 'auto',
             bottom: '52px',
-            width: '300px',
+            width: '600px',
+            maxWidth: '600px',
             borderRadius: '12px',
-            maxHeight: '400px',
+            maxHeight: '600px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
             transform: (selectedShop && !isClosing) ? 'translateY(0)' : 'translateY(20px)',
             opacity: (selectedShop && !isClosing) ? 1 : 0,
