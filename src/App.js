@@ -114,6 +114,10 @@ function App() {
     setSelectedLocation(location);
   }, []);
 
+  const clearSelectedLocation = useCallback(() => {
+    setSelectedLocation(null);
+  }, []);
+
   const handleUserLocation = useCallback((location) => {
     setUserLocation(location);
   }, []);
@@ -182,6 +186,7 @@ function App() {
                   isMapLoaded={isMapLoaded}
                   map={map}
                   onLocationClick={handleLocationClick}
+                  userLocation={userLocation}
                 />
               </Box>
               <Map 
@@ -190,6 +195,7 @@ function App() {
                 selectedLocation={selectedLocation}
                 onMapInstance={setMap}
                 onUserLocation={handleUserLocation}
+                onClearSelectedLocation={clearSelectedLocation}
               />
             </>
           )}

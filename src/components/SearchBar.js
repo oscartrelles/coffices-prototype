@@ -2,9 +2,8 @@ import { useState } from 'react';
 import { components, icons } from '../styles';
 import SearchIcon from '@mui/icons-material/Search';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
-import Box from '@mui/material/Box';
 
-function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick }) {
+function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick, userLocation }) {
   const [searchValue, setSearchValue] = useState('');
   const [suggestions, setSuggestions] = useState([]);
 
@@ -21,7 +20,9 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick }) {
     service.getPlacePredictions(
       {
         input: value,
-        //componentRestrictions: { country: 'ES' },
+        // Bias search to user's current location if available
+        location: userLocation ? new window.google.maps.LatLng(userLocation.lat, userLocation.lng) : undefined,
+        radius: userLocation ? 50000 : undefined, // 50km radius if location is available
         types: ['establishment', 'geocode']
       },
       (predictions, status) => {
@@ -40,17 +41,29 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick }) {
     service.getDetails(
       {
         placeId: suggestion.place_id,
-        fields: ['geometry', 'name', 'formatted_address', 'place_id']
+        fields: ['geometry', 'name', 'formatted_address', 'vicinity', 'place_id', 'types', 'rating', 'user_ratings_total']
       },
       (place, status) => {
         if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+          const isVenue = place.types && place.types.includes('establishment');
+          
           const location = {
             lat: place.geometry.location.lat(),
             lng: place.geometry.location.lng(),
             name: place.name,
             address: place.formatted_address,
             place_id: place.place_id,
-            fromSearch: true
+            fromSearch: true,
+            isVenue: isVenue,
+            // Include full place data if it's a venue for the PlaceDetails component
+            ...(isVenue && { 
+              placeData: {
+                ...place,
+                // Ensure we have the fields that PlaceDetails expects
+                vicinity: place.vicinity || place.formatted_address,
+                geometry: place.geometry
+              }
+            })
           };
           onLocationSelect(location, map);
           setSearchValue(suggestion.structured_formatting.main_text);
