@@ -676,7 +676,10 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
       console.log('🏢 Showing venue details for:', selectedLocation.name);
       setSelectedShop(selectedLocation.placeData);
     }
-    
+    else
+    {
+      setSelectedShop(null); 
+    }
     // Do a single search for the new location
     if (selectedLocation.fromSearch) {
       searchNearby({
