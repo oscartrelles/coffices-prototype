@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { signInWithRedirect, GoogleAuthProvider } from 'firebase/auth';
-import { auth } from '../../firebaseConfig';
+import { signInWithGoogle } from '../../firebaseConfig';
 import { Button } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
 import colors from '../../styles/colors';
@@ -11,8 +10,7 @@ const GoogleSignIn = () => {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithRedirect(auth, provider);
+      await signInWithGoogle();
     } catch (error) {
       console.error('Google sign-in error:', error);
       setIsLoading(false);

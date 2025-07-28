@@ -1,5 +1,17 @@
 {
   "projects": {
     "default": "find-a-coffice"
+  },
+  "targets": {
+    "find-a-coffice": {
+      "hosting": {
+        "staging": [
+          "find-a-coffice"
+        ],
+        "production": [
+          "findacoffice"
+        ]
+      }
+    }
   }
 }
