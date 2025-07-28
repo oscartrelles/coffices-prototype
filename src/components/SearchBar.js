@@ -3,7 +3,7 @@ import { components, icons } from '../styles';
 import SearchIcon from '@mui/icons-material/Search';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
 
-function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick, userLocation }) {
+function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick, userLocation, mapCenter }) {
   const [searchValue, setSearchValue] = useState('');
   const [suggestions, setSuggestions] = useState([]);
 

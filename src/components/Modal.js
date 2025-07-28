@@ -12,7 +12,7 @@ function Modal({ open, onClose, children, title }) {
       onClick={onClose}
     >
       <div 
-        style={components.modal.container}
+        style={{ ...components.modal.container, borderRadius: '12px' }}
         onClick={e => e.stopPropagation()}
       >
         <button

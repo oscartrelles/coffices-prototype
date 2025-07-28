@@ -83,6 +83,7 @@ function CofficePage({ user, onSignInClick }) {
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
         const ratings = querySnapshot.docs.map(doc => doc.data());
+        ratings.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         setCofficeReviews(ratings);
         const totals = {
           wifi: { sum: 0, count: 0 },
@@ -179,7 +180,7 @@ function CofficePage({ user, onSignInClick }) {
 
   // Venue info card
   return (
-    <Box sx={{ height: '100vh', backgroundColor: colors.background.main, display: 'block', overflowY: 'auto', py: 4 }}>
+    <Box sx={{ height: '100vh', backgroundColor: colors.background.main, display: 'block', overflowY: 'auto', py: { xs: 0, sm: 4 } }}>
       <Card sx={{ width: '100%', maxWidth: 600, mb: 4, boxShadow: 3, borderRadius: 3, mx: 'auto', position: 'relative' }}>
         {/* Hero image with overlayed buttons */}
         <Box sx={{ position: 'relative' }}>
@@ -281,7 +282,7 @@ function CofficePage({ user, onSignInClick }) {
               <React.Fragment key={idx}>
                 <Box sx={{ p: 2, background: colors.background.paper }}>
                   <Typography variant="subtitle2" sx={{ color: colors.text.secondary, mb: 1 }}>
-                    {review.displayName ? review.displayName : 'Anonymous'}
+                    {review.displayName ? review.displayName : 'Cofficer'}
                     {review.timestamp && (
                       <span style={{ marginLeft: 8, fontSize: '0.9em', color: colors.text.disabled }}>
                         {new Date(review.timestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}

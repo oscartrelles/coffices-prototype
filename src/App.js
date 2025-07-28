@@ -13,6 +13,7 @@ import Map from './components/Map';
 import PlaceDetails from './components/PlaceDetails';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import AdminInterface from './components/AdminInterface';
+import CofficePage from './components/CofficePage';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -241,11 +242,37 @@ function MainRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/*" element={<App />} />
+        <Route path="/coffice/:placeId" element={<CofficePageWrapper />} />
         <Route path="/hfdhghgghdhgdhgfgfh" element={<AdminInterface />} />
+        <Route path="/*" element={<App />} />
       </Routes>
     </BrowserRouter>
   );
+}
+
+function CofficePageWrapper() {
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setUser(user);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSignInClick = () => {
+    // For deep links, we'll redirect to the main app for sign in
+    window.location.href = '/';
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  return <CofficePage user={user} onSignInClick={handleSignInClick} />;
 }
 
 export default MainRouter;

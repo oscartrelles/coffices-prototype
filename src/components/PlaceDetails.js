@@ -14,7 +14,9 @@ import WifiIcon from '@mui/icons-material/Wifi';
 import PowerIcon from '@mui/icons-material/Power';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import CoffeeIcon from '@mui/icons-material/Coffee';
+import ShareIcon from '@mui/icons-material/Share';
 import { keyframes } from '@mui/system';
+import { Link as RouterLink } from 'react-router-dom';
 
 // Define the blur animation
 const fadeInFromBlur = keyframes`
@@ -106,8 +108,35 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
     setUserHasRated(true);
   };
 
+  const handleShare = async () => {
+    const url = `${window.location.origin}/coffice/${place.place_id}`;
+    
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: place?.name || 'Check out this coffice!',
+          text: `Check out ${place?.name} on Coffices!`,
+          url: url
+        });
+      } else {
+        await navigator.clipboard.writeText(url);
+        alert('Link copied to clipboard!');
+      }
+    } catch (error) {
+      console.error('Error sharing:', error);
+      // Fallback to clipboard
+      try {
+        await navigator.clipboard.writeText(url);
+        alert('Link copied to clipboard!');
+      } catch (clipboardError) {
+        console.error('Error copying to clipboard:', clipboardError);
+      }
+    }
+  };
+
   return (
     <div style={styles.container}>
+      {/* Only show close button, not share button */}
       <IconButton 
         onClick={onClose}
         sx={{
@@ -186,9 +215,20 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
                   </Tooltip>
                   <span>{cofficeRatings.averageRatings.coffee?.toFixed(1)}</span>
                 </div>
-                <span style={styles.ratingCount}>
+                <RouterLink
+                  as="span"
+                  to={user ? `/coffice/${place.place_id}` : undefined}
+                  style={{ textDecoration: 'underline', color: colors.text.disabled, cursor: 'pointer' }}
+                  title={user ? 'See all reviews for this coffice' : 'Sign in to see reviews'}
+                  onClick={e => {
+                    if (!user) {
+                      e.preventDefault();
+                      onSignInRequired && onSignInRequired();
+                    }
+                  }}
+                >
                   ({cofficeRatings.totalRatings} {cofficeRatings.totalRatings === 1 ? 'rating' : 'ratings'})
-                </span>
+                </RouterLink>
               </Box>
             ) : (
               <Box sx={{
@@ -261,7 +301,7 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
 const styles = {
   container: {
     position: 'relative',
-    padding: '12px',
+    padding: '20px',
     backgroundColor: colors.background.paper,
     borderTop: `1px solid ${colors.border}`,
     maxHeight: 'calc(100vh - 120px)',
@@ -269,8 +309,10 @@ const styles = {
     paddingBottom: 'calc(60px + env(safe-area-inset-bottom))',
     marginBottom: '0',
     overflow: 'hidden',
-    width: '500px',
-    margin: '0 auto',
+    width: '100%',
+    margin: 0,
+    maxWidth: '100%',
+    minWidth: 0,
     '@media (max-width: 500px)': {
       width: '100%',
       minWidth: '100%',
