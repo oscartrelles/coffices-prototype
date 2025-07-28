@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Typography, Tooltip, Card, CardContent, CardMedia, Divider, IconButton } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ShareIcon from '@mui/icons-material/Share';
+import FavoriteIcon from '@mui/icons-material/Favorite';
+import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import WifiIcon from '@mui/icons-material/Wifi';
 import PowerIcon from '@mui/icons-material/Power';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
@@ -11,10 +13,23 @@ import VerifiedIcon from '@mui/icons-material/Verified';
 import colors from '../styles/colors';
 import LoadingSpinner from './common/LoadingSpinner';
 import useGoogleMaps from '../hooks/useGoogleMaps';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 const FALLBACK_IMAGE = '/logo512.png';
+
+// Helper function to get display name for reviews
+const getReviewDisplayName = (review, currentUser) => {
+  // If this review belongs to the current user, use the same logic as Header
+  if (review.userId === currentUser?.uid) {
+    if (currentUser?.displayName) return currentUser.displayName;
+    if (currentUser?.email) return currentUser.email.split('@')[0];
+    return 'You';
+  }
+  
+  // Otherwise, use the review's displayName or fallback to 'Cofficer'
+  return review.displayName || 'Cofficer';
+};
 
 function CofficePage({ user, onSignInClick }) {
   const { placeId } = useParams();
@@ -26,6 +41,60 @@ function CofficePage({ user, onSignInClick }) {
   const [error, setError] = useState(null);
   const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
   const [shareMsg, setShareMsg] = useState('');
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+
+  // Check if this place is in user's favorites
+  useEffect(() => {
+    const checkFavoriteStatus = async () => {
+      if (!user?.uid || !placeId) return;
+      
+      try {
+        const profileRef = doc(db, 'profiles', user.uid);
+        const profileDoc = await getDoc(profileRef);
+        
+        if (profileDoc.exists()) {
+          const profileData = profileDoc.data();
+          const favoriteCoffices = profileData.favoriteCoffices || [];
+          setIsFavorite(favoriteCoffices.includes(placeId));
+        }
+      } catch (error) {
+        console.error('Error checking favorite status:', error);
+      }
+    };
+
+    checkFavoriteStatus();
+  }, [user?.uid, placeId]);
+
+  const handleToggleFavorite = async () => {
+    if (!user) {
+      onSignInClick();
+      return;
+    }
+
+    setFavoriteLoading(true);
+    try {
+      const profileRef = doc(db, 'profiles', user.uid);
+      
+      if (isFavorite) {
+        // Remove from favorites
+        await updateDoc(profileRef, {
+          favoriteCoffices: arrayRemove(placeId)
+        });
+        setIsFavorite(false);
+      } else {
+        // Add to favorites
+        await updateDoc(profileRef, {
+          favoriteCoffices: arrayUnion(placeId)
+        });
+        setIsFavorite(true);
+      }
+    } catch (error) {
+      console.error('Error updating favorites:', error);
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!mapsLoaded) return;
@@ -217,11 +286,31 @@ function CofficePage({ user, onSignInClick }) {
                 <ArrowBackIcon sx={{ color: colors.text.primary }} />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Share this coffice">
-              <IconButton onClick={handleShare} sx={{ background: 'rgba(255,255,255,0.85)' }}>
-                <ShareIcon sx={{ color: colors.text.primary }} />
-              </IconButton>
-            </Tooltip>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Tooltip title={isFavorite ? "Remove from favorites" : "Add to favorites"}>
+                <IconButton 
+                  onClick={handleToggleFavorite} 
+                  disabled={favoriteLoading}
+                  sx={{ 
+                    background: 'rgba(255,255,255,0.85)',
+                    '&:hover': {
+                      background: 'rgba(255,255,255,0.95)'
+                    }
+                  }}
+                >
+                  {isFavorite ? (
+                    <FavoriteIcon sx={{ color: colors.primary.main }} />
+                  ) : (
+                    <FavoriteBorderIcon sx={{ color: colors.text.primary }} />
+                  )}
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Share this coffice">
+                <IconButton onClick={handleShare} sx={{ background: 'rgba(255,255,255,0.85)' }}>
+                  <ShareIcon sx={{ color: colors.text.primary }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
           </Box>
         </Box>
         <CardContent>
@@ -282,7 +371,25 @@ function CofficePage({ user, onSignInClick }) {
               <React.Fragment key={idx}>
                 <Box sx={{ p: 2, background: colors.background.paper }}>
                   <Typography variant="subtitle2" sx={{ color: colors.text.secondary, mb: 1 }}>
-                    {review.displayName ? review.displayName : 'Cofficer'}
+                    {review.userId ? (
+                      <span
+                        onClick={() => navigate(`/profile/${review.userId}`)}
+                        style={{
+                          cursor: 'pointer',
+                          color: colors.primary.main,
+                          textDecoration: 'none',
+                          '&:hover': {
+                            textDecoration: 'underline'
+                          }
+                        }}
+                        onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                        onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                      >
+                        {getReviewDisplayName(review, user)}
+                      </span>
+                    ) : (
+                      getReviewDisplayName(review, user)
+                    )}
                     {review.timestamp && (
                       <span style={{ marginLeft: 8, fontSize: '0.9em', color: colors.text.disabled }}>
                         {new Date(review.timestamp).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}

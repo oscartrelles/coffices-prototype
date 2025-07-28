@@ -14,6 +14,7 @@ import PlaceDetails from './components/PlaceDetails';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import AdminInterface from './components/AdminInterface';
 import CofficePage from './components/CofficePage';
+import ProfilePage from './components/ProfilePage';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -243,6 +244,7 @@ function MainRouter() {
     <BrowserRouter>
       <Routes>
         <Route path="/coffice/:placeId" element={<CofficePageWrapper />} />
+        <Route path="/profile/:userId?" element={<ProfilePageWrapper />} />
         <Route path="/hfdhghgghdhgdhgfgfh" element={<AdminInterface />} />
         <Route path="/*" element={<App />} />
       </Routes>
@@ -273,6 +275,31 @@ function CofficePageWrapper() {
   }
 
   return <CofficePage user={user} onSignInClick={handleSignInClick} />;
+}
+
+function ProfilePageWrapper() {
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setUser(user);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleSignInClick = () => {
+    // For deep links, we'll redirect to the main app for sign in
+    window.location.href = '/';
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  return <ProfilePage user={user} onSignInClick={handleSignInClick} />;
 }
 
 export default MainRouter;

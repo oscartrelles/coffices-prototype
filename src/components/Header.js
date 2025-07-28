@@ -1,24 +1,50 @@
-import React, { useMemo } from 'react';
-import { signOut } from 'firebase/auth';
-import { auth } from '../firebaseConfig';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 import { components } from '../styles';
+import colors from '../styles/colors';
 
 function Header({ user, onSignInClick, setUser }) {
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-      setUser(null);
-      console.log('User signed out successfully');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
-  };
+  const [profileData, setProfileData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch user profile data from Firestore
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      if (!user?.uid) {
+        setProfileData(null);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const profileRef = doc(db, 'profiles', user.uid);
+        const profileDoc = await getDoc(profileRef);
+        
+        if (profileDoc.exists()) {
+          setProfileData(profileDoc.data());
+        } else {
+          setProfileData(null);
+        }
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+        setProfileData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfileData();
+  }, [user?.uid]);
 
   const displayName = useMemo(() => {
+    // Priority: Firestore profile data > Firebase Auth displayName > email > Guest
+    if (profileData?.displayName) return profileData.displayName;
     if (user?.displayName) return user.displayName;
     if (user?.email) return user.email.split('@')[0];
     return 'Guest';
-  }, [user?.displayName, user?.email]);
+  }, [profileData?.displayName, user?.displayName, user?.email]);
 
   return (
     <header style={components.header.container}>
@@ -31,16 +57,31 @@ function Header({ user, onSignInClick, setUser }) {
           <div style={components.header.userInfo}>
             <span style={components.header.statusDot} />
             <span style={components.header.userName}>
-              Hi, {displayName}!
+              <Link 
+                to="/profile" 
+                style={{ 
+                  ...components.header.userNameLink,
+                  color: colors.primary.main,
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                  '&:hover': {
+                    textDecoration: 'underline'
+                  }
+                }}
+              >
+                Hi, {displayName}!
+              </Link>
             </span>
           </div>
         )}
-        <button
-          onClick={user ? handleSignOut : onSignInClick}
-          style={components.header.authButton}
-        >
-          {user ? 'Sign Out' : 'Sign In'}
-        </button>
+        {!user && (
+          <button
+            onClick={onSignInClick}
+            style={components.header.authButton}
+          >
+            Sign In
+          </button>
+        )}
       </div>
     </header>
   );
