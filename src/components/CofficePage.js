@@ -15,7 +15,6 @@ import LoadingSpinner from './common/LoadingSpinner';
 import useGoogleMaps from '../hooks/useGoogleMaps';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import placeCacheService from '../services/placeCache';
 
 const FALLBACK_IMAGE = '/logo512.png';
 
@@ -185,22 +184,22 @@ function CofficePage({ user, onSignInClick }) {
         const q = query(ratingsRef, where('placeId', '==', placeId));
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
-          try {
-            // Use cached place details
-            const placeDetails = await placeCacheService.getPlaceDetails(placeId, [
-              'geometry', 'name', 'formatted_address', 'vicinity', 'place_id', 'types', 'rating', 'user_ratings_total', 'photos'
-            ]);
-            
-            fetchCofficeRatingsAndReviews(placeId);
-            setPlace({
-              ...placeDetails,
-              vicinity: placeDetails.vicinity || placeDetails.formatted_address
-            });
-          } catch (error) {
-            console.error('Error fetching place details:', error);
-            setError('Place not found');
-          }
-          setIsLoading(false);
+          const service = new window.google.maps.places.PlacesService(document.createElement('div'));
+          service.getDetails({
+            placeId: placeId,
+            fields: ['geometry', 'name', 'formatted_address', 'vicinity', 'place_id', 'types', 'rating', 'user_ratings_total', 'photos']
+          }, (placeDetails, status) => {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK && placeDetails) {
+              fetchCofficeRatingsAndReviews(placeId);
+              setPlace({
+                ...placeDetails,
+                vicinity: placeDetails.vicinity || placeDetails.formatted_address
+              });
+            } else {
+              setError('Place not found');
+            }
+            setIsLoading(false);
+          });
         } else {
           setError('Coffice not found in our database');
           setIsLoading(false);
