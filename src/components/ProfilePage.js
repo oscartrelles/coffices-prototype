@@ -684,12 +684,20 @@ function ProfilePage({ user, onSignInClick }) {
     <Box sx={{ height: '100vh', backgroundColor: colors.background.main, display: 'flex', flexDirection: 'column' }}>
       {/* Profile Content */}
       <Box sx={{ flex: 1, overflowY: 'auto', py: { xs: 0, sm: 4 } }}>
-        <Card sx={{ width: '100%', maxWidth: 600, mx: 'auto', mb: 3, boxShadow: 3, borderRadius: 3, position: 'relative' }}>
+        <Card sx={{ 
+          width: '100%', 
+          maxWidth: 600, 
+          mx: 'auto', 
+          mb: isEditing ? 6 : 3, 
+          boxShadow: 3, 
+          borderRadius: 3, 
+          position: 'relative' 
+        }}>
           {/* Hero section with overlayed buttons */}
           <Box sx={{ position: 'relative' }}>
             <CardMedia
               component="div"
-              height="200"
+              height="240"
               sx={{ 
                 background: `linear-gradient(135deg, ${colors.primary.main} 0%, ${colors.primary.dark} 100%)`,
                 objectFit: 'cover', 
@@ -697,7 +705,8 @@ function ProfilePage({ user, onSignInClick }) {
                 borderTopRightRadius: 12,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                padding: '20px'
               }}
             >
               <Avatar
@@ -778,7 +787,7 @@ function ProfilePage({ user, onSignInClick }) {
             </Box>
           </Box>
           
-          <CardContent sx={{ p: 3 }}>
+          <CardContent sx={{ p: 3, pb: isEditing ? 6 : 3 }}>
             {/* Achievement Badge Section */}
             <Box sx={{ mb: 3 }}>
               {ratedCofficesLoading ? (
@@ -800,8 +809,12 @@ function ProfilePage({ user, onSignInClick }) {
                         fontSize: '0.9rem',
                         '& .MuiChip-icon': {
                           color: colors.primary.dark,
-                          marginRight: 0.5
-                        }
+                          marginRight: 0
+                        },
+                        '& .MuiChip-label': {
+                          paddingLeft: '4px'
+                        },
+                        padding: '4px 2px'
                       }}
                     />
                     <Typography variant="body2" sx={{ color: colors.text.secondary, ml: 1 }}>
