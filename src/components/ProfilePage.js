@@ -70,16 +70,17 @@ function ProfilePage({ user, onSignInClick }) {
       setError(null);
 
       try {
-        if (isOwnProfile && user) {
-          // Try to load profile from Firestore first
-          const profileRef = doc(db, 'profiles', targetUserId);
-          const profileDoc = await getDoc(profileRef);
-          
+        // Always try to load profile from Firestore first
+        const profileRef = doc(db, 'profiles', targetUserId);
+        const profileDoc = await getDoc(profileRef);
+        
+        if (profileDoc.exists()) {
+          // Profile exists in Firestore
+          const firestoreData = profileDoc.data();
           let userProfile;
           
-          if (profileDoc.exists()) {
-            // Profile exists in Firestore
-            const firestoreData = profileDoc.data();
+          if (isOwnProfile && user) {
+            // For own profile, merge with user data and allow creation of default profile
             userProfile = {
               displayName: firestoreData.displayName || user.displayName || '',
               email: user.email || '',
@@ -96,56 +97,87 @@ function ProfilePage({ user, onSignInClick }) {
                 website: ''
               },
               userType: firestoreData.userType || 'regular',
-              ratedCofficesCount: firestoreData.ratedCofficesCount || 0 // Load ratedCofficesCount
+              ratedCofficesCount: firestoreData.ratedCofficesCount || 0
             };
           } else {
-            // No profile in Firestore, create default from user data
+            // For other users' profiles, only show what's in Firestore
             userProfile = {
-              displayName: user.displayName || '',
-              email: user.email || '',
-              photoURL: user.photoURL || '',
-              tagline: '',
-              bio: '',
-              location: '',
-              joinedDate: user.metadata?.creationTime || new Date().toISOString(),
-              favoriteCoffices: [],
-              socialLinks: {
+              displayName: firestoreData.displayName || 'Anonymous Cofficer',
+              email: '', // Don't show email for other users
+              photoURL: firestoreData.photoURL || '',
+              tagline: firestoreData.tagline || '',
+              bio: firestoreData.bio || '',
+              location: firestoreData.location || '',
+              joinedDate: firestoreData.joinedDate || '',
+              favoriteCoffices: firestoreData.favoriteCoffices || [],
+              socialLinks: firestoreData.socialLinks || {
                 twitter: '',
                 linkedin: '',
                 instagram: '',
                 website: ''
               },
-              userType: 'regular',
-              ratedCofficesCount: 0 // Default ratedCofficesCount
+              userType: firestoreData.userType || 'regular',
+              ratedCofficesCount: firestoreData.ratedCofficesCount || 0
             };
-            
-            // Double-check that the profile truly doesn't exist before creating it
-            const doubleCheckDoc = await getDoc(profileRef);
-            if (!doubleCheckDoc.exists()) {
-              // Save the default profile to Firestore
-              await setDoc(profileRef, userProfile);
-            } else {
-              // Profile was created by another process, load the existing one
-              const existingData = doubleCheckDoc.data();
-              userProfile = {
-                displayName: existingData.displayName || '',
-                email: existingData.email || '',
-                photoURL: existingData.photoURL || '',
-                tagline: existingData.tagline || '',
-                bio: existingData.bio || '',
-                location: existingData.location || '',
-                joinedDate: existingData.joinedDate || user.metadata?.creationTime || new Date().toISOString(),
-                favoriteCoffices: existingData.favoriteCoffices || [],
-                socialLinks: {
-                  twitter: existingData.socialLinks?.twitter || '',
-                  linkedin: existingData.socialLinks?.linkedin || '',
-                  instagram: existingData.socialLinks?.instagram || '',
-                  website: existingData.socialLinks?.website || ''
-                },
-                userType: existingData.userType || 'regular',
-                ratedCofficesCount: existingData.ratedCofficesCount || 0
-              };
-            }
+          }
+          
+          setProfile(userProfile);
+          if (isOwnProfile) {
+            setEditForm({
+              displayName: userProfile.displayName,
+              tagline: userProfile.tagline,
+              bio: userProfile.bio,
+              location: userProfile.location,
+              socialLinks: userProfile.socialLinks
+            });
+          }
+        } else if (isOwnProfile && user) {
+          // Only create default profile for own profile
+          const userProfile = {
+            displayName: user.displayName || '',
+            email: user.email || '',
+            photoURL: user.photoURL || '',
+            tagline: '',
+            bio: '',
+            location: '',
+            joinedDate: user.metadata?.creationTime || new Date().toISOString(),
+            favoriteCoffices: [],
+            socialLinks: {
+              twitter: '',
+              linkedin: '',
+              instagram: '',
+              website: ''
+            },
+            userType: 'regular',
+            ratedCofficesCount: 0
+          };
+          
+          // Double-check that the profile truly doesn't exist before creating it
+          const doubleCheckDoc = await getDoc(profileRef);
+          if (!doubleCheckDoc.exists()) {
+            // Save the default profile to Firestore
+            await setDoc(profileRef, userProfile);
+          } else {
+            // Profile was created by another process, load the existing one
+            const existingData = doubleCheckDoc.data();
+            userProfile = {
+              displayName: existingData.displayName || '',
+              email: existingData.email || '',
+              photoURL: existingData.photoURL || '',
+              tagline: existingData.tagline || '',
+              bio: existingData.bio || '',
+              location: existingData.location || '',
+              joinedDate: existingData.joinedDate || user.metadata?.creationTime || new Date().toISOString(),
+              favoriteCoffices: existingData.favoriteCoffices || [],
+              socialLinks: {
+                twitter: existingData.socialLinks?.twitter || '',
+                linkedin: existingData.socialLinks?.linkedin || '',
+                instagram: existingData.socialLinks?.instagram || '',
+                website: existingData.socialLinks?.website || ''
+              },
+              userType: existingData.userType || 'regular',
+              ratedCofficesCount: existingData.ratedCofficesCount || 0
+            };
           }
           
           setProfile(userProfile);
@@ -454,7 +486,7 @@ function ProfilePage({ user, onSignInClick }) {
   // Fetch rated coffices count when user changes
   useEffect(() => {
     const loadRatedCofficesCount = async () => {
-      if (!user?.uid) return;
+      if (!targetUserId) return;
 
       // First, try to use the stored count from profile
       if (profile?.ratedCofficesCount !== undefined) {
@@ -462,12 +494,21 @@ function ProfilePage({ user, onSignInClick }) {
         return;
       }
 
-      // If no stored count, fetch from ratings collection and store it
-      await fetchRatedCofficesCount();
+      // For other users' profiles, we can't fetch the count from ratings collection
+      // so we'll just use the stored count from their profile
+      if (!isOwnProfile) {
+        setRatedCofficesCount(profile?.ratedCofficesCount || 0);
+        return;
+      }
+
+      // For own profile, if no stored count, fetch from ratings collection and store it
+      if (user?.uid) {
+        await fetchRatedCofficesCount();
+      }
     };
 
     loadRatedCofficesCount();
-  }, [user?.uid, profile?.ratedCofficesCount]);
+  }, [targetUserId, user?.uid, profile?.ratedCofficesCount, isOwnProfile]);
 
   // Get achievement badge based on rated coffices count
   const getAchievementBadge = (count) => {
@@ -727,7 +768,7 @@ function ProfilePage({ user, onSignInClick }) {
                   <ArrowBackIcon sx={{ color: colors.text.primary }} />
                 </IconButton>
               </Tooltip>
-              {user && (
+              {user && isOwnProfile && (
                 <Tooltip title="Sign Out">
                   <IconButton onClick={handleSignOut} sx={{ background: 'rgba(255,255,255,0.85)' }}>
                     <LogoutIcon sx={{ color: colors.text.primary }} />
@@ -738,38 +779,38 @@ function ProfilePage({ user, onSignInClick }) {
           </Box>
           
           <CardContent sx={{ p: 3 }}>
-            {/* Rated Coffices (replacing Profile Completion) */}
-            {isOwnProfile && (
-              <Box sx={{ mb: 3 }}>
-                {ratedCofficesLoading ? (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                    <LoadingSpinner />
-                  </Box>
-                ) : (
-                  <>
-                    {/* Achievement Badge */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <Chip
-                        icon={<EmojiEventsIcon />}
-                        label={achievement.label}
-                        sx={{
-                          backgroundColor: colors.primary.light,
+            {/* Achievement Badge Section */}
+            <Box sx={{ mb: 3 }}>
+              {ratedCofficesLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                  <LoadingSpinner />
+                </Box>
+              ) : (
+                <>
+                  {/* Achievement Badge */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <Chip
+                      icon={<EmojiEventsIcon />}
+                      label={achievement.label}
+                      sx={{
+                        backgroundColor: colors.primary.light,
+                        color: colors.primary.dark,
+                        fontWeight: 600,
+                        borderRadius: 2,
+                        fontSize: '0.9rem',
+                        '& .MuiChip-icon': {
                           color: colors.primary.dark,
-                          fontWeight: 600,
-                          borderRadius: 2,
-                          fontSize: '0.9rem',
-                          '& .MuiChip-icon': {
-                            color: colors.primary.dark,
-                            marginRight: 0.5
-                          }
-                        }}
-                      />
-                      <Typography variant="body2" sx={{ color: colors.text.secondary, ml: 1 }}>
-                        {achievement.icon}
-                      </Typography>
-                    </Box>
-                    
-                    {/* Progress to Next Level */}
+                          marginRight: 0.5
+                        }
+                      }}
+                    />
+                    <Typography variant="body2" sx={{ color: colors.text.secondary, ml: 1 }}>
+                      {achievement.icon}
+                    </Typography>
+                  </Box>
+                  
+                  {/* Progress to Next Level (only for own profile) */}
+                  {isOwnProfile && (
                     <Box sx={{ mb: 2 }}>
                       <Box sx={{ 
                         width: '100%', 
@@ -789,28 +830,28 @@ function ProfilePage({ user, onSignInClick }) {
                         {nextMilestone ? `${nextMilestone - ratedCofficesCount}/${nextMilestone} for next level` : 'Max level reached!'}
                       </Typography>
                     </Box>
-                    
-                    {/* Call to Action for New Users */}
-                    {ratedCofficesCount === 0 && (
-                      <Chip
-                        label="Rate your first coffice!"
-                        sx={{
-                          backgroundColor: colors.background.paper,
-                          color: colors.text.secondary,
-                          border: `1px solid ${colors.border}`,
-                          cursor: 'pointer',
-                          '&:hover': {
-                            backgroundColor: colors.primary.light,
-                            color: colors.primary.dark
-                          }
-                        }}
-                        onClick={() => navigate('/')}
-                      />
-                    )}
-                  </>
-                )}
-              </Box>
-            )}
+                  )}
+                  
+                  {/* Call to Action for New Users (only for own profile) */}
+                  {isOwnProfile && ratedCofficesCount === 0 && (
+                    <Chip
+                      label="Rate your first coffice!"
+                      sx={{
+                        backgroundColor: colors.background.paper,
+                        color: colors.text.secondary,
+                        border: `1px solid ${colors.border}`,
+                        cursor: 'pointer',
+                        '&:hover': {
+                          backgroundColor: colors.primary.light,
+                          color: colors.primary.dark
+                        }
+                      }}
+                      onClick={() => navigate('/')}
+                    />
+                  )}
+                </>
+              )}
+            </Box>
 
             {/* Profile Header */}
             <Box sx={{ textAlign: 'center', mb: 3 }}>
@@ -852,8 +893,8 @@ function ProfilePage({ user, onSignInClick }) {
               </Typography>
             </Box>
 
-            {/* Email Section (Read-only in edit mode) */}
-            {isEditing && profile?.email && (
+            {/* Email Section (Read-only in edit mode, only for own profile) */}
+            {isEditing && isOwnProfile && profile?.email && (
               <Box sx={{ mb: 3 }}>
                 <Typography variant="h6" sx={{ color: colors.text.primary, mb: 1 }}>
                   Email
