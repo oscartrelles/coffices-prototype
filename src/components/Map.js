@@ -8,7 +8,6 @@ import { debounce } from 'lodash';
 import { calculateDistance } from '../utils/distance';
 import PropTypes from 'prop-types';
 import { useGeolocation } from '../hooks/useGeolocation';
-import placeCacheService from '../services/placeCache';
 
 const DEFAULT_LOCATION = { lat: 36.7213028, lng: -4.4216366 }; // Málaga
 const DEFAULT_ZOOM = 15;
@@ -259,71 +258,80 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
         placeRatings[rating.placeId].ratings.push(rating);
       });
       
-      // Get place IDs for batch processing
-      const placeIds = Object.keys(placeRatings);
-      
-      if (placeIds.length === 0) {
-        console.log('📭 No place IDs found for batch processing');
-        return [];
-      }
-      
-      // Batch fetch place details using cache service
-      console.log('🔄 Batch fetching place details for', placeIds.length, 'places');
-      const places = await placeCacheService.batchGetPlaceDetails(placeIds);
-      
-      // Process places and filter by distance
-      const ratedCoffices = places
-        .filter(place => {
-          if (!place) return false;
+      // Convert to array of promises for parallel execution
+      const placePromises = Object.entries(placeRatings).map(async ([placeId, placeData]) => {
+        try {
+          const service = new window.google.maps.places.PlacesService(mapInstance);
           
-          const placeLocation = {
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng()
-          };
-          
-          const distance = calculateDistance(location, placeLocation);
-          return distance <= radius;
-        })
-        .map(place => {
-          const placeData = placeRatings[place.place_id];
-          
-          // Calculate average ratings
-          const totals = {
-            wifi: { sum: 0, count: 0 },
-            power: { sum: 0, count: 0 },
-            noise: { sum: 0, count: 0 },
-            coffee: { sum: 0, count: 0 }
-          };
-          
-          placeData.ratings.forEach(rating => {
-            ['wifi', 'power', 'noise', 'coffee'].forEach(key => {
-              if (typeof rating[key] === 'number') {
-                totals[key].sum += rating[key];
-                totals[key].count++;
+          return new Promise((resolve) => {
+            service.getDetails({
+              placeId: placeId,
+              fields: ['geometry', 'name', 'formatted_address', 'vicinity', 'place_id', 'types', 'rating', 'user_ratings_total']
+            }, (place, status) => {
+              if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
+                const placeLocation = {
+                  lat: place.geometry.location.lat(),
+                  lng: place.geometry.location.lng()
+                };
+                
+                const distance = calculateDistance(location, placeLocation);
+                
+                if (distance <= radius) {
+                  console.log('✅ Found rated coffice within range:', place.name, 'distance:', Math.round(distance), 'm');
+                  
+                  // Calculate average ratings
+                  const totals = {
+                    wifi: { sum: 0, count: 0 },
+                    power: { sum: 0, count: 0 },
+                    noise: { sum: 0, count: 0 },
+                    coffee: { sum: 0, count: 0 }
+                  };
+                  
+                  placeData.ratings.forEach(rating => {
+                    ['wifi', 'power', 'noise', 'coffee'].forEach(key => {
+                      if (typeof rating[key] === 'number') {
+                        totals[key].sum += rating[key];
+                        totals[key].count++;
+                      }
+                    });
+                  });
+                  
+                  const averageRatings = {};
+                  Object.keys(totals).forEach(key => {
+                    averageRatings[key] = totals[key].count > 0 ? 
+                      totals[key].sum / totals[key].count : 0;
+                  });
+                  
+                  // Add our rating data to the place object
+                  const enhancedPlace = {
+                    ...place,
+                    vicinity: place.vicinity || place.formatted_address,
+                    cofficeRatings: {
+                      averageRatings,
+                      totalRatings: placeData.ratings.length
+                    },
+                    hasRatings: true,
+                    isRatedCoffice: true
+                  };
+                  
+                  resolve(enhancedPlace);
+                } else {
+                  resolve(null);
+                }
+              } else {
+                resolve(null);
               }
             });
           });
-          
-          const averageRatings = {};
-          Object.keys(totals).forEach(key => {
-            averageRatings[key] = totals[key].count > 0 ? 
-              totals[key].sum / totals[key].count : 0;
-          });
-          
-          console.log('✅ Found rated coffice within range:', place.name);
-          
-          // Add our rating data to the place object
-          return {
-            ...place,
-            vicinity: place.vicinity || place.formatted_address,
-            cofficeRatings: {
-              averageRatings,
-              totalRatings: placeData.ratings.length
-            },
-            hasRatings: true,
-            isRatedCoffice: true
-          };
-        });
+        } catch (error) {
+          console.error('Error fetching place details for rated coffice:', placeId, error);
+          return null;
+        }
+      });
+      
+      // Wait for all place details to be fetched
+      const results = await Promise.all(placePromises);
+      const ratedCoffices = results.filter(place => place !== null);
       
       console.log('🏪 Found', ratedCoffices.length, 'rated coffices within range');
       return ratedCoffices;
