@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes, BrowserRouter, useNavigate } fr
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db, handleRedirectResult, logAnalyticsEvent } from './firebaseConfig';
+import getApiKeys from './config/apiKeys';
 import EmailSignIn from './components/auth/EmailSignIn';
 import GoogleSignIn from './components/auth/GoogleSignIn';
 import Modal from './components/Modal';
@@ -78,7 +79,8 @@ function App() {
 
     console.log('Loading Google Maps script');
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places&loading=async&callback=initMap`;
+    const { mapsApiKey } = getApiKeys();
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places&loading=async&callback=initMap`;
     script.async = true;
     script.defer = true;
 

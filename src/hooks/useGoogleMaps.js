@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
+import getApiKeys from '../config/apiKeys';
 
-const GOOGLE_MAPS_SRC = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places`;
+const getGoogleMapsSrc = () => {
+  const { mapsApiKey } = getApiKeys();
+  return `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places`;
+};
 
 export default function useGoogleMaps() {
   const [loaded, setLoaded] = useState(!!window.google?.maps);
@@ -22,7 +26,7 @@ export default function useGoogleMaps() {
 
     // Create script
     const script = document.createElement('script');
-    script.src = GOOGLE_MAPS_SRC;
+    script.src = getGoogleMapsSrc();
     script.async = true;
     script.defer = true;
     script.onload = () => setLoaded(true);
