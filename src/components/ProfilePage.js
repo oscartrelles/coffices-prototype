@@ -21,6 +21,7 @@ import { db, storage } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import { collection, getDocs, query, where } from 'firebase/firestore';
+import placeCacheService from '../services/placeCache';
 
 function ProfilePage({ user, onSignInClick }) {
   const { userId } = useParams();
@@ -359,37 +360,30 @@ function ProfilePage({ user, onSignInClick }) {
 
     setFavoriteCofficesLoading(true);
     try {
-      const cofficesData = [];
+      // Use batch processing with caching
+      const placeIds = profile.favoriteCoffices;
+      console.log('🔄 Batch fetching favorite coffices:', placeIds.length);
       
-      for (const placeId of profile.favoriteCoffices) {
-        try {
-          const service = new window.google.maps.places.PlacesService(document.createElement('div'));
-          
-          await new Promise((resolve, reject) => {
-            service.getDetails({
-              placeId: placeId,
-              fields: ['name', 'formatted_address', 'vicinity', 'photos', 'rating']
-            }, (placeDetails, status) => {
-              if (status === window.google.maps.places.PlacesServiceStatus.OK && placeDetails) {
-                cofficesData.push({
-                  placeId,
-                  name: placeDetails.name,
-                  address: placeDetails.formatted_address || placeDetails.vicinity,
-                  photo: placeDetails.photos?.[0],
-                  rating: placeDetails.rating
-                });
-              }
-              resolve();
-            });
-          });
-        } catch (error) {
-          console.error(`Error fetching place ${placeId}:`, error);
-        }
-      }
+      const places = await placeCacheService.batchGetPlaceDetails(
+        placeIds,
+        ['name', 'formatted_address', 'vicinity', 'photos', 'rating']
+      );
+      
+      const cofficesData = places
+        .filter(place => place !== null)
+        .map(place => ({
+          placeId: place.place_id,
+          name: place.name,
+          address: place.formatted_address || place.vicinity,
+          photo: place.photos?.[0],
+          rating: place.rating
+        }));
       
       setFavoriteCoffices(cofficesData);
+      console.log('✅ Loaded', cofficesData.length, 'favorite coffices');
     } catch (error) {
       console.error('Error fetching favorite coffices:', error);
+      setFavoriteCoffices([]);
     } finally {
       setFavoriteCofficesLoading(false);
     }

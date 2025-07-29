@@ -17,6 +17,7 @@ import LoadingSpinner from './components/common/LoadingSpinner';
 import AdminInterface from './components/AdminInterface';
 import CofficePage from './components/CofficePage';
 import ProfilePage from './components/ProfilePage';
+import ApiUsageMonitor from './components/ApiUsageMonitor';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -29,6 +30,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasCheckedProfile, setHasCheckedProfile] = useState(false);
   const [shouldRedirectToProfile, setShouldRedirectToProfile] = useState(false);
+  const [showApiMonitor, setShowApiMonitor] = useState(false);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -100,6 +102,19 @@ function App() {
 
   useEffect(() => {
     logAnalyticsEvent('app_loaded');
+  }, []);
+
+  // Keyboard shortcut to toggle API monitor (Ctrl+Shift+A)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.ctrlKey && event.shiftKey && event.key === 'A') {
+        event.preventDefault();
+        setShowApiMonitor(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const handleSignInClick = () => {
@@ -256,6 +271,7 @@ function App() {
             </>
           )}
           <Footer />
+          <ApiUsageMonitor isVisible={showApiMonitor} />
           <Modal
             open={showAuthModal}
             onClose={handleModalClose}
