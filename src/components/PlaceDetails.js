@@ -278,7 +278,7 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
       ) : showRatingForm ? (
         <RatingForm 
           placeId={place.place_id}
-          userId={user.uid}
+          user={user}
           onSubmit={handleRatingSubmit}
           onCancel={() => setShowRatingForm(false)}
         />

@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
-import { BrowserRouter as Router, Route, Routes, BrowserRouter } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, BrowserRouter, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth, handleRedirectResult, logAnalyticsEvent } from './firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db, handleRedirectResult, logAnalyticsEvent } from './firebaseConfig';
 import EmailSignIn from './components/auth/EmailSignIn';
 import GoogleSignIn from './components/auth/GoogleSignIn';
 import Modal from './components/Modal';
@@ -25,6 +26,8 @@ function App() {
   const [map, setMap] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasCheckedProfile, setHasCheckedProfile] = useState(false);
+  const [shouldRedirectToProfile, setShouldRedirectToProfile] = useState(false);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -150,6 +153,55 @@ function App() {
   const handleSignOut = () => {
     logAnalyticsEvent('user_signed_out');
   };
+
+  // Check if user has a profile and redirect if they don't
+  const checkUserProfile = useCallback(async (currentUser) => {
+    if (!currentUser?.uid) return;
+    
+    try {
+      const profileRef = doc(db, 'profiles', currentUser.uid);
+      const profileDoc = await getDoc(profileRef);
+      
+      if (!profileDoc.exists()) {
+        // User doesn't have a profile, set flag to redirect
+        console.log('New user detected, will redirect to profile page');
+        setShouldRedirectToProfile(true);
+      }
+    } catch (error) {
+      console.error('Error checking user profile:', error);
+    } finally {
+      setHasCheckedProfile(true);
+    }
+  }, []);
+
+  // Check profile when user changes
+  useEffect(() => {
+    if (user && !hasCheckedProfile) {
+      checkUserProfile(user);
+    }
+  }, [user, hasCheckedProfile, checkUserProfile]);
+
+  // Handle redirect to profile page
+  useEffect(() => {
+    if (shouldRedirectToProfile && hasCheckedProfile) {
+      // Don't redirect if already on profile page
+      if (window.location.pathname === '/profile') {
+        setShouldRedirectToProfile(false);
+        return;
+      }
+      
+      console.log('Redirecting to profile page');
+      window.location.href = '/profile';
+    }
+  }, [shouldRedirectToProfile, hasCheckedProfile]);
+
+  // Reset redirect flag when user signs out
+  useEffect(() => {
+    if (!user) {
+      setShouldRedirectToProfile(false);
+      setHasCheckedProfile(false);
+    }
+  }, [user]);
 
   if (isLoading) return <LoadingSpinner />;
 

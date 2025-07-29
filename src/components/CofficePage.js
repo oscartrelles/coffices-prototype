@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Typography, Tooltip, Card, CardContent, CardMedia, Divider, IconButton } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -19,15 +19,16 @@ import { db } from '../firebaseConfig';
 const FALLBACK_IMAGE = '/logo512.png';
 
 // Helper function to get display name for reviews
-const getReviewDisplayName = (review, currentUser) => {
+const getReviewDisplayName = (review, currentUser, currentUserProfile, userProfiles) => {
   // If this review belongs to the current user, use the same logic as Header
-  if (review.userId === currentUser?.uid) {
-    if (currentUser?.displayName) return currentUser.displayName;
-    if (currentUser?.email) return currentUser.email.split('@')[0];
-    return 'You';
+  if (review.userId === currentUser?.uid)  return 'You';
+  
+  // For other users, use the fetched profile display name
+  if (userProfiles[review.userId]) {
+    return userProfiles[review.userId].displayName;
   }
   
-  // Otherwise, use the review's displayName or fallback to 'Cofficer'
+  // Fallback to review's displayName or 'Cofficer'
   return review.displayName || 'Cofficer';
 };
 
@@ -43,6 +44,9 @@ function CofficePage({ user, onSignInClick }) {
   const [shareMsg, setShareMsg] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [userProfiles, setUserProfiles] = useState({});
+  const [profilesLoading, setProfilesLoading] = useState(false);
 
   // Check if this place is in user's favorites
   useEffect(() => {
@@ -65,6 +69,70 @@ function CofficePage({ user, onSignInClick }) {
 
     checkFavoriteStatus();
   }, [user?.uid, placeId]);
+
+  // Fetch current user's profile for display name
+  useEffect(() => {
+    const fetchCurrentUserProfile = async () => {
+      if (!user?.uid) return;
+      
+      try {
+        const profileRef = doc(db, 'profiles', user.uid);
+        const profileDoc = await getDoc(profileRef);
+        
+        if (profileDoc.exists()) {
+          setCurrentUserProfile(profileDoc.data());
+        }
+      } catch (error) {
+        console.error('Error fetching current user profile:', error);
+      }
+    };
+
+    fetchCurrentUserProfile();
+  }, [user?.uid]);
+
+  // Fetch user profiles for display names
+  const fetchUserProfiles = async (reviews) => {
+    if (!reviews || reviews.length === 0) return;
+    
+    setProfilesLoading(true);
+    try {
+      const userIds = [...new Set(reviews.map(review => review.userId).filter(Boolean))];
+      const profiles = {};
+      
+      for (const userId of userIds) {
+        if (!userProfiles[userId]) { // Only fetch if not already cached
+          const profileRef = doc(db, 'profiles', userId);
+          const profileDoc = await getDoc(profileRef);
+          
+          if (profileDoc.exists()) {
+            const profileData = profileDoc.data();
+            profiles[userId] = {
+              displayName: profileData.displayName || profileData.email?.split('@')[0] || 'Cofficer',
+              photoURL: profileData.photoURL
+            };
+          } else {
+            profiles[userId] = {
+              displayName: 'Cofficer',
+              photoURL: null
+            };
+          }
+        }
+      }
+      
+      setUserProfiles(prev => ({ ...prev, ...profiles }));
+    } catch (error) {
+      console.error('Error fetching user profiles:', error);
+    } finally {
+      setProfilesLoading(false);
+    }
+  };
+
+  // Fetch user profiles when reviews change
+  useEffect(() => {
+    if (cofficeReviews && cofficeReviews.length > 0) {
+      fetchUserProfiles(cofficeReviews);
+    }
+  }, [cofficeReviews]);
 
   const handleToggleFavorite = async () => {
     if (!user) {
@@ -177,6 +245,7 @@ function CofficePage({ user, onSignInClick }) {
           averageRatings,
           totalRatings: ratings.length
         });
+        await fetchUserProfiles(ratings); // Fetch profiles after ratings are fetched
       } else {
         setCofficeReviews([]);
       }
@@ -385,10 +454,10 @@ function CofficePage({ user, onSignInClick }) {
                         onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
                         onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
                       >
-                        {getReviewDisplayName(review, user)}
+                        {getReviewDisplayName(review, user, currentUserProfile, userProfiles)}
                       </span>
                     ) : (
-                      getReviewDisplayName(review, user)
+                      getReviewDisplayName(review, user, currentUserProfile, userProfiles)
                     )}
                     {review.timestamp && (
                       <span style={{ marginLeft: 8, fontSize: '0.9em', color: colors.text.disabled }}>

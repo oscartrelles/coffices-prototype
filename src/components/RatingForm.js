@@ -1,17 +1,10 @@
 import React, { useState } from 'react';
-import { 
-  Box, 
-  Rating, 
-  Button, 
-  Stack,
-  Typography,
-  TextField 
-} from '@mui/material';
-import { doc, setDoc } from 'firebase/firestore';
+import { Box, Typography, Rating, Stack, Button, TextField } from '@mui/material';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import colors from '../styles/colors';
 
-function RatingForm({ placeId, userId, onSubmit, onCancel }) {
+function RatingForm({ placeId, user, onSubmit, onCancel }) {
   const [ratings, setRatings] = useState({
     wifi: 0,
     power: 0,
@@ -33,13 +26,13 @@ function RatingForm({ placeId, userId, onSubmit, onCancel }) {
     setIsSubmitting(true);
 
     try {
-      // Create document ID by combining placeId and userId
-      const docId = `${placeId}_${userId}`;
+      // Create document ID by combining placeId and user.uid
+      const docId = `${placeId}_${user.uid}`;
       
       // Prepare rating data
       const ratingData = {
         placeId,
-        userId,
+        userId: user.uid,
         wifi: ratings.wifi,
         power: ratings.power,
         noise: ratings.noise,
@@ -49,7 +42,27 @@ function RatingForm({ placeId, userId, onSubmit, onCancel }) {
       };
 
       // Save to Firestore
+      // Check if this is a new rating (not updating existing)
+      const existingRatingRef = doc(db, 'ratings', docId);
+      const existingRatingDoc = await getDoc(existingRatingRef);
+      const isNewRating = !existingRatingDoc.exists();
+
+      // Save the rating
       await setDoc(doc(db, 'ratings', docId), ratingData);
+
+      // If this is a new rating, increment the user's rated coffices count
+      if (isNewRating) {
+        const profileRef = doc(db, 'profiles', user.uid);
+        const profileDoc = await getDoc(profileRef);
+        
+        if (profileDoc.exists()) {
+          const currentCount = profileDoc.data().ratedCofficesCount || 0;
+          await updateDoc(profileRef, {
+            ratedCofficesCount: currentCount + 1,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
       
       // Call the onSubmit callback
       onSubmit();
