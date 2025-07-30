@@ -21,16 +21,28 @@ class PlaceCacheService {
     const sessionCached = this.getFromSessionCache(placeId);
     if (sessionCached) {
       console.log('📦 Place details found in session cache:', placeId);
-      return sessionCached;
+      // If we need photos but cached data doesn't have them, force fresh fetch
+      if (fields && fields.includes('photos') && (!sessionCached.photos || sessionCached.photos.length === 0)) {
+        console.log('🔄 Cached data missing photos, forcing fresh fetch for:', placeId);
+        this.clearPlaceCache(placeId);
+      } else {
+        return sessionCached;
+      }
     }
 
     // Check local storage cache
     const localCached = this.getFromLocalCache(placeId);
     if (localCached) {
       console.log('💾 Place details found in local cache:', placeId);
-      // Move to session cache for faster access
-      this.setSessionCache(placeId, localCached);
-      return localCached;
+      // If we need photos but cached data doesn't have them, force fresh fetch
+      if (fields && fields.includes('photos') && (!localCached.photos || localCached.photos.length === 0)) {
+        console.log('🔄 Cached data missing photos, forcing fresh fetch for:', placeId);
+        this.clearPlaceCache(placeId);
+      } else {
+        // Move to session cache for faster access
+        this.setSessionCache(placeId, localCached);
+        return localCached;
+      }
     }
 
     // Create promise for this request
@@ -277,6 +289,19 @@ class PlaceCacheService {
       });
     } catch (error) {
       console.error('Error clearing local cache:', error);
+    }
+  }
+
+  // Clear cache for a specific place
+  clearPlaceCache(placeId) {
+    this.sessionCache.delete(placeId);
+    this.localCache.delete(placeId);
+    try {
+      const cacheKey = `place_${placeId}`;
+      localStorage.removeItem(cacheKey);
+      console.log('🧹 Cleared place cache for:', placeId);
+    } catch (error) {
+      console.error('Error clearing place cache:', error);
     }
   }
 }

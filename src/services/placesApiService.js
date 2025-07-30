@@ -1,9 +1,15 @@
 // Places API Service using Firebase Functions
 // This service handles all Google Places API calls through our backend
 
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions';
 
 const functions = getFunctions();
+
+// Connect to local emulator if in development
+if (process.env.NODE_ENV === 'development') {
+  connectFunctionsEmulator(functions, 'localhost', 5001);
+  console.log('🔧 Connected to Firebase Functions emulator');
+}
 
 // Initialize the Firebase Functions
 const nearbySearchFunction = httpsCallable(functions, 'nearbySearch');
@@ -21,12 +27,22 @@ class PlacesApiService {
     try {
       console.log('🔍 Calling Firebase Function for nearby search:', { location, radius, types, keyword });
       
-      const result = await nearbySearchFunction({
+      console.log('⏳ Starting Firebase Function call...');
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Firebase Function call timed out after 10 seconds')), 10000);
+      });
+      
+      const functionPromise = nearbySearchFunction({
         location,
         radius,
         types,
         keyword
       });
+      
+      const result = await Promise.race([functionPromise, timeoutPromise]);
+      console.log('📦 Firebase Function response received:', result);
       
       if (result.data.status === 'OK') {
         console.log('✅ Nearby search successful:', result.data.results.length, 'places found');
@@ -37,12 +53,13 @@ class PlacesApiService {
       }
     } catch (error) {
       console.error('❌ Error in nearbySearch:', error);
+      console.error('❌ Error details:', error.message, error.code, error.details);
       throw error;
     }
   }
 
   // Get place details using Firebase Functions
-  async getPlaceDetails(placeId, fields = 'name,geometry,vicinity,formatted_address,place_id') {
+  async getPlaceDetails(placeId, fields = 'name,geometry,vicinity,formatted_address,place_id,photos') {
     try {
       // Check cache first
       const cacheKey = `details_${placeId}_${fields}`;
@@ -75,7 +92,7 @@ class PlacesApiService {
   }
 
   // Batch get place details using Firebase Functions
-  async batchGetPlaceDetails(placeIds, fields = 'name,geometry,vicinity,formatted_address,place_id') {
+  async batchGetPlaceDetails(placeIds, fields = 'name,geometry,vicinity,formatted_address,place_id,photos') {
     try {
       console.log('🔍 Calling Firebase Function for batch place details:', placeIds.length, 'places');
       

@@ -8,14 +8,14 @@ import { debounce } from 'lodash';
 import { calculateDistance } from '../utils/distance';
 import PropTypes from 'prop-types';
 import { useGeolocation } from '../hooks/useGeolocation';
-import placeCacheService from '../services/placeCache';
 import placesApiService from '../services/placesApiService';
+import cofficesService from '../services/cofficesService';
 
 const DEFAULT_LOCATION = { lat: 36.7213028, lng: -4.4216366 }; // Málaga
 const DEFAULT_ZOOM = 15;
 const MIN_ZOOM = 14;
 const MAX_ZOOM = 17;
-const SEARCH_RADIUS = 1000; // meters
+const SEARCH_RADIUS = 5000; // meters (5km) - increased to find more rated coffices
 
 function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocation = () => {}, onClearSelectedLocation }) {
   console.log('Map: Rendering with props:', { user, selectedLocation });
@@ -233,93 +233,44 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
     return width / 1.5;
   }, [mapInstance]);
 
-  // Function to fetch rated coffices from Firestore within a geographic area
+  // Function to fetch rated coffices from Firestore using the coffices collection
   const fetchRatedCoffices = useCallback(async (location, radius) => {
     try {
-      console.log('🏪 Fetching rated coffices from Firestore for location:', location, 'radius:', radius);
+      console.log('🏪 Fetching rated coffices from coffices collection for location:', location, 'radius:', radius);
       
-      // Get all ratings from Firestore
-      const q = query(collection(db, 'ratings'));
-      const querySnapshot = await getDocs(q);
+      // Use the coffices service to get nearby coffices
+      const nearbyCoffices = await cofficesService.getCofficesNearby(location, radius);
       
-      if (querySnapshot.empty) {
+      if (nearbyCoffices.length === 0) {
         console.log('📭 No rated coffices found in database');
         return [];
       }
       
-      // Group ratings by placeId and calculate averages
-      const placeRatings = {};
-      querySnapshot.docs.forEach(doc => {
-        const rating = doc.data();
-        if (!placeRatings[rating.placeId]) {
-          placeRatings[rating.placeId] = {
-            ratings: [],
-            placeId: rating.placeId,
-            // Store basic place info from the rating data
-            name: rating.placeName,
-            vicinity: rating.placeVicinity,
-            geometry: {
-              location: {
-                lat: () => rating.placeLat,
-                lng: () => rating.placeLng
-              }
-            },
-            place_id: rating.placeId
-          };
-        }
-        placeRatings[rating.placeId].ratings.push(rating);
+      // Convert to the format expected by the map component
+      const ratedCoffices = nearbyCoffices.map(cofficeData => {
+        console.log('✅ Found rated coffice within range:', cofficeData.name);
+        
+        return {
+          place_id: cofficeData.placeId,
+          name: cofficeData.name,
+          vicinity: cofficeData.vicinity,
+          geometry: {
+            location: new window.google.maps.LatLng(
+              cofficeData.geometry.location.lat,
+              cofficeData.geometry.location.lng
+            )
+          },
+          cofficeRatings: {
+            averageRatings: cofficeData.averageRatings,
+            totalRatings: cofficeData.totalRatings
+          },
+          hasRatings: true,
+          isRatedCoffice: true,
+          distance: cofficeData.distance
+        };
       });
       
-      // Process places and filter by distance (no Google API calls needed)
-      const ratedCoffices = Object.values(placeRatings)
-        .filter(placeData => {
-          const placeLocation = {
-            lat: placeData.geometry.location.lat(),
-            lng: placeData.geometry.location.lng()
-          };
-          
-          const distance = calculateDistance(location, placeLocation);
-          return distance <= radius;
-        })
-        .map(placeData => {
-          // Calculate average ratings
-          const totals = {
-            wifi: { sum: 0, count: 0 },
-            power: { sum: 0, count: 0 },
-            noise: { sum: 0, count: 0 },
-            coffee: { sum: 0, count: 0 }
-          };
-          
-          placeData.ratings.forEach(rating => {
-            ['wifi', 'power', 'noise', 'coffee'].forEach(key => {
-              if (typeof rating[key] === 'number') {
-                totals[key].sum += rating[key];
-                totals[key].count++;
-              }
-            });
-          });
-          
-          const averageRatings = {};
-          Object.keys(totals).forEach(key => {
-            averageRatings[key] = totals[key].count > 0 ? 
-              totals[key].sum / totals[key].count : 0;
-          });
-          
-          console.log('✅ Found rated coffice within range:', placeData.name);
-          
-          // Return place object with our rating data (no Google API call needed)
-          return {
-            ...placeData,
-            cofficeRatings: {
-              averageRatings,
-              totalRatings: placeData.ratings.length
-            },
-            hasRatings: true,
-            isRatedCoffice: true
-          };
-        });
-      
-      console.log('🏪 Found', ratedCoffices.length, 'rated coffices within range (from database only)');
+      console.log('🏪 Found', ratedCoffices.length, 'rated coffices within range (from coffices collection)');
       return ratedCoffices;
       
     } catch (error) {
@@ -348,11 +299,27 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
     // Update last search location before making the request
     lastSearchLocationRef.current = location;
     
+    // Wait for map to be fully initialized with bounds
+    if (!mapInstance.getBounds()) {
+      console.log('⏳ Waiting for map bounds to be available...');
+      // Wait a bit for the map to initialize
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
     const searchRadius = getSearchRadius();
+    console.log('📏 Using search radius:', searchRadius, 'meters');
     
     // First, fetch our rated coffices from Firestore
+    console.log('🏪 Starting database search for rated coffices...');
     const ratedCoffices = await fetchRatedCoffices(location, searchRadius);
     const ratedPlaceIds = new Set(ratedCoffices.map(place => place.place_id));
+    
+    // Show rated coffices immediately if we found any
+    if (ratedCoffices.length > 0) {
+      console.log('📝 Showing rated coffices first:', ratedCoffices.length);
+      setCoffeeShops(ratedCoffices);
+      setLastSearchLocation(location);
+    }
     
     // Then fetch from Places API using Firebase Functions
     console.log('🔍 Using Firebase Functions for nearby search');
