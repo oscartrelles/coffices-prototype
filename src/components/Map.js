@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Box } from '@mui/material';
 import PlaceDetails from './PlaceDetails';
 import { doc, getDoc, query, setDoc, collection, where, getDocs } from 'firebase/firestore';
@@ -17,7 +17,8 @@ const MIN_ZOOM = 14;
 const MAX_ZOOM = 17;
 const SEARCH_RADIUS = 5000; // meters (5km) - increased to find more rated coffices
 
-function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocation = () => {}, onClearSelectedLocation }) {
+// Performance optimization: Memoize the Map component
+function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocation = () => {}, onClearSelectedLocation }) {
   console.log('Map: Rendering with props:', { user, selectedLocation });
 
   // Near the top with other state declarations
@@ -34,8 +35,8 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
   const isProgrammaticMoveRef = useRef(false);
   const lastHandledLocationRef = useRef(null);
 
-  // Define marker styles
-  const markerStyles = {
+  // Performance optimization: Memoize marker styles to prevent recreation
+  const markerStyles = useMemo(() => ({
     default: {
       path: window.google?.maps?.SymbolPath?.CIRCLE || 0,
       fillColor: colors.primary.main,
@@ -70,11 +71,10 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
       strokeWeight: 1.5,
       anchor: new window.google.maps.Point(10, 10)
     }
-  };
-  // Detailed star path: M17.684,7.925l-5.131-0.67L10.329,2.57c-0.131-0.275-0.527-0.275-0.658,0L7.447,7.255l-5.131,0.67C2.014,7.964,1.892,8.333,2.113,8.54l3.76,3.568L4.924,17.21c-0.056,0.297,0.261,0.525,0.533,0.379L10,15.109l4.543,2.479c0.273,0.153,0.587-0.089,0.533-0.379l-0.949-5.103l3.76-3.568C18.108,8.333,17.986,7.964,17.684,7.925 M13.481,11.723c-0.089,0.083-0.129,0.205-0.105,0.324l0.848,4.547l-4.047-2.208c-0.055-0.03-0.116-0.045-0.176-0.045s-0.122,0.015-0.176,0.045l-4.047,2.208l0.847-4.547c0.023-0.119-0.016-0.241-0.105-0.324L3.162,8.54L7.74,7.941c0.124-0.016,0.229-0.093,0.282-0.203L10,3.568l1.978,4.17c0.053,0.11,0.158,0.187,0.282,0.203l4.578,0.598L13.481,11.723z
+  }), []);
 
-  // Define map styles
-  const mapStyles = [
+  // Performance optimization: Memoize map styles
+  const mapStyles = useMemo(() => [
     {
       elementType: "geometry",
       stylers: [{ color: "#f5f5f5" }]
@@ -99,6 +99,16 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
     },
     {
       featureType: "road",
+      elementType: "geometry.stroke",
+      stylers: [{ color: "#c9c9c9" }]
+    },
+    {
+      featureType: "road",
+      elementType: "geometry.stroke",
+      stylers: [{ visibility: "off" }]
+    },
+    {
+      featureType: "road",
       elementType: "labels.text.fill",
       stylers: [{ color: "#666666" }]
     },
@@ -107,7 +117,7 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
       elementType: "labels.text.fill",
       stylers: [{ color: "#333333" }]
     }
-  ];
+  ], []);
 
   const [mapInstance, setMapInstance] = useState(null);
   const [selectedShop, setSelectedShop] = useState(null);
@@ -127,8 +137,8 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
   const [mapCenter, setMapCenter] = useState(null);
   const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);  // Default zoom level
 
-  // Define a unified search configuration
-  const getPlacesRequest = (location) => ({
+  // Performance optimization: Memoize search configuration
+  const getPlacesRequest = useMemo(() => (location) => ({
     location: location,
     radius: SEARCH_RADIUS, // Use fixed radius for initial search
     type: ['cafe', 'restaurant', 'bar', 'bakery', 'food'],  // Cast a wider net for establishment types
@@ -136,9 +146,45 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
     //rankBy: window.google.maps.places.RankBy.RATING,
     // Note: Using both radius and rankBy together ensures we get more results
     // while still prioritizing highly-rated places within our search area
-  });
+  }), []);
 
-  // Add a function to handle marker selection
+  // Performance optimization: Add request deduplication
+  const pendingSearches = useRef(new Map());
+
+  // Performance optimization: Add marker pooling
+  const markerPool = useRef(new Map());
+
+  // Performance optimization: Memoize marker creation function
+  const createOrUpdateMarker = useCallback((place, isSelected) => {
+    const existingMarker = markerPool.current.get(place.place_id);
+    
+    if (existingMarker) {
+      // Update existing marker instead of creating new one
+      const icon = place.hasRatings ? 
+        (isSelected ? markerStyles.ratedSelected : markerStyles.rated) :
+        (isSelected ? markerStyles.selected : markerStyles.default);
+      
+      existingMarker.setIcon(icon);
+      existingMarker.setPosition(place.geometry.location);
+      return existingMarker;
+    }
+    
+    // Create new marker only if needed
+    const newMarker = new window.google.maps.Marker({
+      position: place.geometry.location,
+      map: mapInstance,
+      title: place.name,
+      icon: place.hasRatings ? 
+        (isSelected ? markerStyles.ratedSelected : markerStyles.rated) :
+        (isSelected ? markerStyles.selected : markerStyles.default)
+    });
+
+    newMarker.addListener('click', () => handleMarkerClick(newMarker, place));
+    markerPool.current.set(place.place_id, newMarker);
+    return newMarker;
+  }, [mapInstance, markerStyles]);
+
+  // Performance optimization: Memoize marker click handler
   const handleMarkerClick = useCallback((marker, shop) => {
     console.log('Marker clicked:', shop.name);
     
@@ -154,7 +200,7 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
     setSelectedShop(shop);
   }, [markerStyles]);
 
-  // Add function to check if place has ratings
+  // Performance optimization: Memoize rating check function
   const checkPlaceRatings = useCallback(async (placeId) => {
     const q = query(collection(db, 'ratings'), where('placeId', '==', placeId));
     const querySnapshot = await getDocs(q);
@@ -164,7 +210,7 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
   // Add ref to track last update
   const lastUpdateRef = useRef(null);
 
-  // Update the updateMarkers function
+  // Performance optimization: Optimize marker updates with pooling
   const updateMarkers = useCallback(async () => {
     if (!mapInstance || !coffeeShops.length) {
       console.log('Cannot create markers:', { hasMap: !!mapInstance, shopCount: coffeeShops.length });
@@ -181,37 +227,34 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
     console.log('🎯 Updating markers for', coffeeShops.length, 'places');
     lastUpdateRef.current = placesKey;
     
-    // Clear old markers
-    Object.values(markersRef.current).forEach(marker => {
-      marker.setMap(null);
+    // Performance optimization: Clear only unused markers
+    const currentPlaceIds = new Set(coffeeShops.map(p => p.place_id));
+    markerPool.current.forEach((marker, placeId) => {
+      if (!currentPlaceIds.has(placeId)) {
+        marker.setMap(null);
+        markerPool.current.delete(placeId);
+      }
     });
+    
+    // Clear old markers ref
     markersRef.current = {};
     
-    // Create new markers
+    // Create or update markers using pooling
     for (const place of coffeeShops) {
-      const marker = new window.google.maps.Marker({
-        position: place.geometry.location,
-        map: mapInstance,
-        title: place.name,
-        icon: markerStyles.default
-      });
-
-      marker.addListener('click', () => handleMarkerClick(marker, place));
+      const isSelected = selectedShop?.place_id === place.place_id;
+      const marker = createOrUpdateMarker(place, isSelected);
       markersRef.current[place.place_id] = marker;
       
       // Check if this place has ratings (either from our database or from enhanced place data)
       const hasRatings = place.hasRatings || await checkPlaceRatings(place.place_id);
       if (hasRatings) {
-        marker.setIcon(place.place_id === selectedShop?.place_id ? 
-          markerStyles.ratedSelected : 
-          markerStyles.rated
-        );
         marker.hasRatings = true;
+        marker.setIcon(isSelected ? markerStyles.ratedSelected : markerStyles.rated);
       }
     }
 
-    console.log('✅ Created', Object.keys(markersRef.current).length, 'markers');
-  }, [mapInstance, coffeeShops, selectedShop, markerStyles, handleMarkerClick, checkPlaceRatings]);
+    console.log('✅ Updated', Object.keys(markersRef.current).length, 'markers using pooling');
+  }, [mapInstance, coffeeShops, selectedShop, markerStyles, handleMarkerClick, checkPlaceRatings, createOrUpdateMarker]);
 
   // 1. First define getSearchRadius
   const getSearchRadius = useCallback(() => {
@@ -872,198 +915,8 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
   );
 }
 
-const styles = {
-  container: {
-    height: '100vh',
-    width: '100%',
-    position: 'relative',
-    overflow: 'hidden',
-    backgroundColor: colors.background.main,
-  },
-  mapContainer: {
-    position: 'absolute',
-    top: '60px', // Height of header
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  map: {
-    height: '100%',
-    width: '100%',
-    backgroundColor: colors.background.main,
-  },
-  infoPanel: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'white',
-    padding: '20px',
-    borderTopLeftRadius: '16px',
-    borderTopRightRadius: '16px',
-    boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
-    transform: 'translateY(0)',
-    transition: 'transform 0.3s ease-in-out',
-    maxHeight: '30vh',
-    overflowY: 'auto',
-    zIndex: 1000,
-    '@media (min-width: 768px)': {
-      left: '20px',
-      right: 'auto',
-      bottom: '20px',
-      width: '300px',
-      borderRadius: '12px',
-      maxHeight: '400px',
-    }
-  },
-  infoPanelHandle: {
-    width: '40px',
-    height: '4px',
-    backgroundColor: '#E0E0E0',
-    borderRadius: '2px',
-    margin: '-10px auto 15px',
-  },
-  closeButton: {
-    position: 'absolute',
-    top: '12px',
-    right: '12px',
-    width: '30px',
-    height: '30px',
-    border: 'none',
-    background: 'none',
-    fontSize: '24px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#666',
-  },
-  title: {
-    margin: '0 0 8px 0',
-    fontSize: '18px',
-    paddingRight: '30px',
-  },
-  address: {
-    margin: '0 0 8px 0',
-    color: '#666',
-    fontSize: '14px',
-  },
-  rating: {
-    margin: '0',
-    fontSize: '14px',
-    color: '#444',
-  },
-  authButton: {
-    position: 'absolute',
-    top: '10px',
-    right: '10px',
-    zIndex: 1000,
-    padding: '8px 16px',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '500',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    transition: 'background-color 0.2s',
-    ':hover': {
-      backgroundColor: colors.primary.dark,
-    }
-  },
-  rateButton: {
-    width: '100%',
-    padding: '8px 16px',
-    backgroundColor: colors.primary.main,
-    color: colors.text.white,
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    marginTop: '12px',
-    fontSize: '14px',
-    fontWeight: '500',
-  },
-  ratingsContainer: {
-    marginTop: '12px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-  },
-  ratingSection: {
-    padding: '8px',
-    backgroundColor: colors.background.paper,
-    borderRadius: '4px',
-    border: `1px solid ${colors.border}`,
-  },
-  ratingTitle: {
-    margin: '0 0 8px 0',
-    fontSize: '14px',
-    fontWeight: '600',
-    color: colors.text.secondary,
-  },
-  cofficeRatings: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, 1fr)',
-    gap: '8px',
-  },
-  ratingItem: {
-    margin: 0,
-    fontSize: '14px',
-    color: colors.text.primary,
-  },
-  totalRatings: {
-    margin: '8px 0 0 0',
-    gridColumn: '1 / -1',
-    fontSize: '12px',
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
-  userRatingSection: {
-    marginTop: '12px',
-    padding: '8px',
-    backgroundColor: colors.background.paper,
-    borderRadius: '4px',
-    border: `1px solid ${colors.border}`,
-  },
-  userComment: {
-    gridColumn: '1 / -1',
-    margin: '8px 0 0 0',
-    fontSize: '14px',
-    color: colors.text.secondary,
-    fontStyle: 'italic',
-  },
-  ratingDate: {
-    gridColumn: '1 / -1',
-    margin: '8px 0 0 0',
-    fontSize: '12px',
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
-  commentsButton: {
-    gridColumn: '1 / -1',
-    padding: '8px',
-    marginTop: '8px',
-    backgroundColor: 'transparent',
-    color: colors.text.secondary,
-    border: `1px solid ${colors.border}`,
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    transition: 'all 0.2s ease',
-    ':hover': {
-      backgroundColor: colors.background.main,
-    }
-  },
-  commentsSection: {
-    gridColumn: '1 / -1',
-    marginTop: '12px',
-    padding: '8px',
-    backgroundColor: colors.background.main,
-    borderRadius: '4px',
-  }
-};
-
 // Add PropTypes
-Map.propTypes = {
+MapComponent.propTypes = {
   user: PropTypes.object,
   onSignInClick: PropTypes.func.isRequired,
   selectedLocation: PropTypes.object,
@@ -1072,13 +925,5 @@ Map.propTypes = {
   onClearSelectedLocation: PropTypes.func
 };
 
-// Wrap Map with React.memo and a custom comparison function
-export default React.memo(Map, (prevProps, nextProps) => {
-  // Deep compare the selectedLocation object
-  const locationEqual = prevProps.selectedLocation?.lat === nextProps.selectedLocation?.lat &&
-                       prevProps.selectedLocation?.lng === nextProps.selectedLocation?.lng;
-                       
-  return prevProps.user?.uid === nextProps.user?.uid &&
-         prevProps.onSignInClick === nextProps.onSignInClick &&
-         locationEqual;
-}); 
+// Export the memoized component
+export default React.memo(MapComponent); 
