@@ -3,8 +3,9 @@ import { Box, Typography, Rating, Stack, Button, TextField } from '@mui/material
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import colors from '../styles/colors';
+import cofficesService from '../services/cofficesService';
 
-function RatingForm({ placeId, user, onSubmit, onCancel }) {
+function RatingForm({ placeId, place, user, onSubmit, onCancel }) {
   const [ratings, setRatings] = useState({
     wifi: 0,
     power: 0,
@@ -22,17 +23,24 @@ function RatingForm({ placeId, user, onSubmit, onCancel }) {
       alert('Please provide all ratings');
       return;
     }
-
+    
     setIsSubmitting(true);
 
     try {
-      // Create document ID by combining placeId and user.uid
-      const docId = `${placeId}_${user.uid}`;
+      console.log('📝 Starting rating submission for placeId:', placeId);
+      console.log('📍 Place data:', {
+        name: place?.name,
+        placeId: place?.place_id,
+        hasPhotos: !!place?.photos,
+        photoCount: place?.photos?.length || 0
+      });
+      console.log('⭐ Rating data:', ratings);
       
-      // Prepare rating data
+      const docId = `${user.uid}_${placeId}`;
       const ratingData = {
-        placeId,
         userId: user.uid,
+        placeId: placeId,
+        placeName: place?.name || '',
         wifi: ratings.wifi,
         power: ratings.power,
         noise: ratings.noise,
@@ -41,17 +49,30 @@ function RatingForm({ placeId, user, onSubmit, onCancel }) {
         timestamp: new Date().toISOString()
       };
 
-      // Save to Firestore
       // Check if this is a new rating (not updating existing)
       const existingRatingRef = doc(db, 'ratings', docId);
       const existingRatingDoc = await getDoc(existingRatingRef);
       const isNewRating = !existingRatingDoc.exists();
+      
+      console.log('🆕 Is this a new rating?', isNewRating);
 
-      // Save the rating
+      // Step 1: Create/update coffice document with location data and aggregated ratings
+      if (place) {
+        console.log('🏢 Creating/updating coffice document...');
+        await cofficesService.createOrUpdateCoffice(place, ratingData);
+        console.log('✅ Coffice document created/updated successfully');
+      } else {
+        console.log('⚠️ No place data available for coffice creation');
+      }
+
+      // Step 2: Save the individual rating
+      console.log('💾 Saving individual rating...');
       await setDoc(doc(db, 'ratings', docId), ratingData);
+      console.log('✅ Individual rating saved successfully');
 
       // If this is a new rating, increment the user's rated coffices count
       if (isNewRating) {
+        console.log('👤 Updating user profile with new rating count...');
         const profileRef = doc(db, 'profiles', user.uid);
         const profileDoc = await getDoc(profileRef);
         
@@ -61,13 +82,16 @@ function RatingForm({ placeId, user, onSubmit, onCancel }) {
             ratedCofficesCount: currentCount + 1,
             updatedAt: new Date().toISOString()
           });
+          console.log('✅ User profile updated');
         }
       }
+      
+      console.log('🎉 Rating submission completed successfully!');
       
       // Call the onSubmit callback
       onSubmit();
     } catch (error) {
-      console.error('Error saving rating:', error);
+      console.error('❌ Error saving rating:', error);
       alert('Failed to save rating. Please try again.');
     } finally {
       setIsSubmitting(false);

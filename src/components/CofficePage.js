@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Button, Typography, Tooltip, Card, CardContent, CardMedia, Divider, IconButton } from '@mui/material';
+import { Box, Button, Typography, Tooltip, Card, CardContent, CardMedia, Divider, IconButton, Modal } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ShareIcon from '@mui/icons-material/Share';
 import FavoriteIcon from '@mui/icons-material/Favorite';
@@ -15,6 +15,9 @@ import LoadingSpinner from './common/LoadingSpinner';
 import useGoogleMaps from '../hooks/useGoogleMaps';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import cofficesService from '../services/cofficesService';
+import EmailSignIn from './auth/EmailSignIn';
+import GoogleSignIn from './auth/GoogleSignIn';
 
 const FALLBACK_IMAGE = '/logo512.png';
 
@@ -47,6 +50,7 @@ function CofficePage({ user, onSignInClick }) {
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
   const [userProfiles, setUserProfiles] = useState({});
   const [profilesLoading, setProfilesLoading] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Check if this place is in user's favorites
   useEffect(() => {
@@ -136,7 +140,7 @@ function CofficePage({ user, onSignInClick }) {
 
   const handleToggleFavorite = async () => {
     if (!user) {
-      onSignInClick();
+      setShowAuthModal(true);
       return;
     }
 
@@ -164,6 +168,17 @@ function CofficePage({ user, onSignInClick }) {
     }
   };
 
+  // Log when place data changes (for debugging)
+  useEffect(() => {
+    if (place) {
+      console.log('🖼️ Coffice data loaded:', {
+        name: place.name,
+        mainImageUrl: place.mainImageUrl,
+        hasImage: !!place.mainImageUrl
+      });
+    }
+  }, [place]);
+
   useEffect(() => {
     if (!mapsLoaded) return;
     if (mapsError) {
@@ -180,30 +195,51 @@ function CofficePage({ user, onSignInClick }) {
       try {
         setIsLoading(true);
         setError(null);
-        const ratingsRef = collection(db, 'ratings');
-        const q = query(ratingsRef, where('placeId', '==', placeId));
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          const service = new window.google.maps.places.PlacesService(document.createElement('div'));
-          service.getDetails({
-            placeId: placeId,
-            fields: ['geometry', 'name', 'formatted_address', 'vicinity', 'place_id', 'types', 'rating', 'user_ratings_total', 'photos']
-          }, (placeDetails, status) => {
-            if (status === window.google.maps.places.PlacesServiceStatus.OK && placeDetails) {
-              fetchCofficeRatingsAndReviews(placeId);
-              setPlace({
-                ...placeDetails,
-                vicinity: placeDetails.vicinity || placeDetails.formatted_address
-              });
-            } else {
-              setError('Place not found');
-            }
-            setIsLoading(false);
+        
+        // First, try to get data from coffices collection
+        const cofficeRef = doc(db, 'coffices', placeId);
+        const cofficeDoc = await getDoc(cofficeRef);
+        
+        if (cofficeDoc.exists()) {
+          const cofficeData = cofficeDoc.data();
+          
+          // Set place data from coffices collection
+          setPlace({
+            place_id: cofficeData.placeId,
+            name: cofficeData.name,
+            vicinity: cofficeData.vicinity,
+            geometry: cofficeData.geometry,
+            // Include main image URL
+            mainImageUrl: cofficeData.mainImageUrl || null,
+            // Add other fields that might be needed
+            types: ['cafe'],
+            rating: 0, // We'll calculate this from our ratings
+            user_ratings_total: cofficeData.totalRatings
           });
+          
+          // Set ratings data from coffices collection
+          setCofficeRatings({
+            averageRatings: cofficeData.averageRatings,
+            totalRatings: cofficeData.totalRatings
+          });
+          
+          // Fetch individual reviews for display
+          fetchCofficeRatingsAndReviews(placeId);
         } else {
-          setError('Coffice not found in our database');
-          setIsLoading(false);
+          // Fallback: check if place exists in ratings (for backward compatibility)
+          const ratingsRef = collection(db, 'ratings');
+          const q = query(ratingsRef, where('placeId', '==', placeId));
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            // Place exists in ratings but not in coffices - this shouldn't happen after migration
+            setError('Coffice data incomplete - please contact support');
+          } else {
+            setError('Coffice not found in our database');
+          }
         }
+        
+        setIsLoading(false);
       } catch (error) {
         console.error('Error fetching coffice data:', error);
         setError('Failed to load coffice data');
@@ -215,51 +251,41 @@ function CofficePage({ user, onSignInClick }) {
 
   const fetchCofficeRatingsAndReviews = async (placeId) => {
     try {
+      // Only fetch individual reviews for display - averages are already in coffices collection
       const ratingsRef = collection(db, 'ratings');
       const q = query(ratingsRef, where('placeId', '==', placeId));
       const querySnapshot = await getDocs(q);
+      
       if (!querySnapshot.empty) {
         const ratings = querySnapshot.docs.map(doc => doc.data());
+        // Sort by timestamp (newest first)
         ratings.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         setCofficeReviews(ratings);
-        const totals = {
-          wifi: { sum: 0, count: 0 },
-          power: { sum: 0, count: 0 },
-          noise: { sum: 0, count: 0 },
-          coffee: { sum: 0, count: 0 }
-        };
-        ratings.forEach(rating => {
-          ['wifi', 'power', 'noise', 'coffee'].forEach(key => {
-            if (typeof rating[key] === 'number') {
-              totals[key].sum += rating[key];
-              totals[key].count++;
-            }
-          });
-        });
-        const averageRatings = {};
-        Object.keys(totals).forEach(key => {
-          averageRatings[key] = totals[key].count > 0 ? 
-            totals[key].sum / totals[key].count : 0;
-        });
-        setCofficeRatings({
-          averageRatings,
-          totalRatings: ratings.length
-        });
-        await fetchUserProfiles(ratings); // Fetch profiles after ratings are fetched
+        
+        // Fetch user profiles for display names
+        await fetchUserProfiles(ratings);
       } else {
         setCofficeReviews([]);
       }
     } catch (error) {
-      console.error('Error fetching ratings:', error);
+      console.error('Error fetching reviews:', error);
       setCofficeReviews([]);
     }
   };
 
   const getPhotoUrl = (photo) => {
     if (!photo) return null;
+    
+    // Handle cached photo data from database
+    if (photo.url) {
+      return photo.url;
+    }
+    
+    // Handle Google Maps photo objects
     if (typeof photo.getUrl === 'function') {
       return photo.getUrl({ maxWidth: 800 });
     }
+    
     return null;
   };
 
@@ -322,14 +348,19 @@ function CofficePage({ user, onSignInClick }) {
       <Card sx={{ width: '100%', maxWidth: 600, mb: 4, boxShadow: 3, borderRadius: 3, mx: 'auto', position: 'relative' }}>
         {/* Hero image with overlayed buttons */}
         <Box sx={{ position: 'relative' }}>
-          {place?.photos && place.photos.length > 0 ? (
+          {place?.mainImageUrl ? (
             <CardMedia
               component="img"
               height="260"
-              image={getPhotoUrl(place.photos[0])}
+              image={place.mainImageUrl}
               alt={place.name}
               sx={{ objectFit: 'cover', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}
-              onError={e => { e.target.onerror = null; e.target.src = FALLBACK_IMAGE; }}
+              onError={e => { 
+                console.error('❌ Image failed to load:', place.mainImageUrl);
+                e.target.onerror = null; 
+                e.target.src = FALLBACK_IMAGE; 
+              }}
+              onLoad={() => console.log('✅ Image loaded successfully:', place.mainImageUrl)}
             />
           ) : (
             <CardMedia
@@ -497,6 +528,45 @@ function CofficePage({ user, onSignInClick }) {
       )}
       {/* Add some bottom padding for scrollability */}
       <Box sx={{ height: 32 }} />
+      
+      {/* Auth Modal */}
+      <Modal
+        open={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        aria-labelledby="auth-modal-title"
+        aria-describedby="auth-modal-description"
+      >
+        <Box sx={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 400,
+          bgcolor: 'background.paper',
+          borderRadius: 2,
+          boxShadow: 24,
+          p: 4,
+        }}>
+          <Typography id="auth-modal-title" variant="h6" component="h2" sx={{ mb: 2 }}>
+            Sign in to continue
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <EmailSignIn 
+              onSuccess={() => setShowAuthModal(false)} 
+              setUser={() => {}} // This will be handled by the auth state listener
+            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ flex: 1, height: 1, bgcolor: 'divider' }} />
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>or</Typography>
+              <Box sx={{ flex: 1, height: 1, bgcolor: 'divider' }} />
+            </Box>
+            <GoogleSignIn 
+              onSuccess={() => setShowAuthModal(false)}
+              setUser={() => {}} // This will be handled by the auth state listener
+            />
+          </Box>
+        </Box>
+      </Modal>
     </Box>
   );
 }

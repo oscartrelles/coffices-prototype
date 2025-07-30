@@ -8,12 +8,14 @@ import { debounce } from 'lodash';
 import { calculateDistance } from '../utils/distance';
 import PropTypes from 'prop-types';
 import { useGeolocation } from '../hooks/useGeolocation';
+import placesApiService from '../services/placesApiService';
+import cofficesService from '../services/cofficesService';
 
 const DEFAULT_LOCATION = { lat: 36.7213028, lng: -4.4216366 }; // Málaga
 const DEFAULT_ZOOM = 15;
 const MIN_ZOOM = 14;
 const MAX_ZOOM = 17;
-const SEARCH_RADIUS = 1000; // meters
+const SEARCH_RADIUS = 5000; // meters (5km) - increased to find more rated coffices
 
 function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocation = () => {}, onClearSelectedLocation }) {
   console.log('Map: Rendering with props:', { user, selectedLocation });
@@ -128,8 +130,8 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
   // Define a unified search configuration
   const getPlacesRequest = (location) => ({
     location: location,
-    radius: getSearchRadius(),
-   // type: ['cafe', 'restaurant', 'bar', 'bakery', 'food'],  // Cast a wider net for establishment types
+    radius: SEARCH_RADIUS, // Use fixed radius for initial search
+    type: ['cafe', 'restaurant', 'bar', 'bakery', 'food'],  // Cast a wider net for establishment types
     keyword: 'cafe coffee shop wifi laptop'  // Expanded workspace-related terms
     //rankBy: window.google.maps.places.RankBy.RATING,
     // Note: Using both radius and rankBy together ensures we get more results
@@ -231,116 +233,51 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
     return width / 1.5;
   }, [mapInstance]);
 
-  // Function to fetch rated coffices from Firestore within a geographic area
+  // Function to fetch rated coffices from Firestore using the coffices collection
   const fetchRatedCoffices = useCallback(async (location, radius) => {
     try {
-      console.log('🏪 Fetching rated coffices from Firestore for location:', location, 'radius:', radius);
+      console.log('🏪 Fetching rated coffices from coffices collection for location:', location, 'radius:', radius);
       
-      // Get all ratings from Firestore
-      const q = query(collection(db, 'ratings'));
-      const querySnapshot = await getDocs(q);
+      // Use the coffices service to get nearby coffices
+      const nearbyCoffices = await cofficesService.getCofficesNearby(location, radius);
       
-      if (querySnapshot.empty) {
+      if (nearbyCoffices.length === 0) {
         console.log('📭 No rated coffices found in database');
         return [];
       }
       
-      // Group ratings by placeId and calculate averages
-      const placeRatings = {};
-      querySnapshot.docs.forEach(doc => {
-        const rating = doc.data();
-        if (!placeRatings[rating.placeId]) {
-          placeRatings[rating.placeId] = {
-            ratings: [],
-            placeId: rating.placeId
-          };
-        }
-        placeRatings[rating.placeId].ratings.push(rating);
+      // Convert to the format expected by the map component
+      const ratedCoffices = nearbyCoffices.map(cofficeData => {
+        console.log('✅ Found rated coffice within range:', cofficeData.name);
+        
+        return {
+          place_id: cofficeData.placeId,
+          name: cofficeData.name,
+          vicinity: cofficeData.vicinity,
+          geometry: {
+            location: new window.google.maps.LatLng(
+              cofficeData.geometry.location.lat,
+              cofficeData.geometry.location.lng
+            )
+          },
+          cofficeRatings: {
+            averageRatings: cofficeData.averageRatings,
+            totalRatings: cofficeData.totalRatings
+          },
+          hasRatings: true,
+          isRatedCoffice: true,
+          distance: cofficeData.distance
+        };
       });
       
-      // Convert to array of promises for parallel execution
-      const placePromises = Object.entries(placeRatings).map(async ([placeId, placeData]) => {
-        try {
-          const service = new window.google.maps.places.PlacesService(mapInstance);
-          
-          return new Promise((resolve) => {
-            service.getDetails({
-              placeId: placeId,
-              fields: ['geometry', 'name', 'formatted_address', 'vicinity', 'place_id', 'types', 'rating', 'user_ratings_total']
-            }, (place, status) => {
-              if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
-                const placeLocation = {
-                  lat: place.geometry.location.lat(),
-                  lng: place.geometry.location.lng()
-                };
-                
-                const distance = calculateDistance(location, placeLocation);
-                
-                if (distance <= radius) {
-                  console.log('✅ Found rated coffice within range:', place.name, 'distance:', Math.round(distance), 'm');
-                  
-                  // Calculate average ratings
-                  const totals = {
-                    wifi: { sum: 0, count: 0 },
-                    power: { sum: 0, count: 0 },
-                    noise: { sum: 0, count: 0 },
-                    coffee: { sum: 0, count: 0 }
-                  };
-                  
-                  placeData.ratings.forEach(rating => {
-                    ['wifi', 'power', 'noise', 'coffee'].forEach(key => {
-                      if (typeof rating[key] === 'number') {
-                        totals[key].sum += rating[key];
-                        totals[key].count++;
-                      }
-                    });
-                  });
-                  
-                  const averageRatings = {};
-                  Object.keys(totals).forEach(key => {
-                    averageRatings[key] = totals[key].count > 0 ? 
-                      totals[key].sum / totals[key].count : 0;
-                  });
-                  
-                  // Add our rating data to the place object
-                  const enhancedPlace = {
-                    ...place,
-                    vicinity: place.vicinity || place.formatted_address,
-                    cofficeRatings: {
-                      averageRatings,
-                      totalRatings: placeData.ratings.length
-                    },
-                    hasRatings: true,
-                    isRatedCoffice: true
-                  };
-                  
-                  resolve(enhancedPlace);
-                } else {
-                  resolve(null);
-                }
-              } else {
-                resolve(null);
-              }
-            });
-          });
-        } catch (error) {
-          console.error('Error fetching place details for rated coffice:', placeId, error);
-          return null;
-        }
-      });
-      
-      // Wait for all place details to be fetched
-      const results = await Promise.all(placePromises);
-      const ratedCoffices = results.filter(place => place !== null);
-      
-      console.log('🏪 Found', ratedCoffices.length, 'rated coffices within range');
+      console.log('🏪 Found', ratedCoffices.length, 'rated coffices within range (from coffices collection)');
       return ratedCoffices;
       
     } catch (error) {
       console.error('Error fetching rated coffices:', error);
       return [];
     }
-  }, [mapInstance]);
+  }, []);
 
   // Update searchNearby to first fetch rated coffices, then supplement with Places API
   const searchNearby = useCallback(async (location, isProgrammatic = false) => {
@@ -362,37 +299,59 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
     // Update last search location before making the request
     lastSearchLocationRef.current = location;
     
+    // Wait for map to be fully initialized with bounds
+    if (!mapInstance.getBounds()) {
+      console.log('⏳ Waiting for map bounds to be available...');
+      // Wait a bit for the map to initialize
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
     const searchRadius = getSearchRadius();
+    console.log('📏 Using search radius:', searchRadius, 'meters');
     
     // First, fetch our rated coffices from Firestore
+    console.log('🏪 Starting database search for rated coffices...');
     const ratedCoffices = await fetchRatedCoffices(location, searchRadius);
     const ratedPlaceIds = new Set(ratedCoffices.map(place => place.place_id));
     
-    // Then fetch from Places API
-    const request = getPlacesRequest(location);
-    const service = new window.google.maps.places.PlacesService(mapInstance);
-
-    service.nearbySearch(request, (results, status) => {
-      if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-        console.log('✅ Found nearby coffee shops from Places API:', results.length);
-        
-        // Filter out places that are already in our rated coffices
-        const newPlaces = results.filter(place => !ratedPlaceIds.has(place.place_id));
-        console.log('📝 Adding', newPlaces.length, 'new places from Places API');
-        
-        // Combine rated coffices (prioritized) with new places
-        const allPlaces = [...ratedCoffices, ...newPlaces];
-        
-        console.log('🎯 Total places to display:', allPlaces.length, '(rated:', ratedCoffices.length, 'new:', newPlaces.length, ')');
-        setCoffeeShops(allPlaces);
-        setLastSearchLocation(location);
-      } else {
-        console.log('❌ Places search failed:', status);
-        // Still show rated coffices even if Places API fails
-        setCoffeeShops(ratedCoffices);
-        setLastSearchLocation(location);
-      }
-    });
+    // Show rated coffices immediately if we found any
+    if (ratedCoffices.length > 0) {
+      console.log('📝 Showing rated coffices first:', ratedCoffices.length);
+      setCoffeeShops(ratedCoffices);
+      setLastSearchLocation(location);
+    }
+    
+    // Then fetch from Places API using Firebase Functions
+    console.log('🔍 Using Firebase Functions for nearby search');
+    
+    try {
+      const newPlaces = await placesApiService.nearbySearch(
+        location, 
+        searchRadius, 
+        ['cafe', 'restaurant', 'bar', 'bakery', 'food'],
+        'cafe coffee shop wifi laptop'
+      );
+      
+      console.log('✅ Found nearby coffee shops from Firebase Functions:', newPlaces.length);
+      
+      // Filter out places that are already in our rated coffices
+      const filteredNewPlaces = newPlaces.filter(place => !ratedPlaceIds.has(place.place_id));
+      console.log('📝 Adding', filteredNewPlaces.length, 'new places from Firebase Functions');
+      
+      // Combine rated coffices (prioritized) with new places
+      const allPlaces = [...ratedCoffices, ...filteredNewPlaces];
+      
+      console.log('🎯 Total places to display:', allPlaces.length, '(rated:', ratedCoffices.length, 'new:', filteredNewPlaces.length, ')');
+      setCoffeeShops(allPlaces);
+      setLastSearchLocation(location);
+      
+    } catch (error) {
+      console.error('❌ Error with Firebase Functions:', error);
+      // Still show rated coffices even if Places API fails
+      console.log('📝 Showing only rated coffices due to error');
+      setCoffeeShops(ratedCoffices);
+      setLastSearchLocation(location);
+    }
   }, [mapInstance, getPlacesRequest, fetchRatedCoffices, getSearchRadius]);
 
   // 3. Then define centerMapOnLocation
@@ -747,6 +706,38 @@ function Map({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocat
       setCurrentLocation(geoLocation);
     }
   }, [geoLocation]);
+
+  // Fallback: If no geolocation after 3 seconds, search at default location
+  useEffect(() => {
+    if (!mapInstance || initialSearchDoneRef.current) return;
+
+    const fallbackTimer = setTimeout(async () => {
+      if (!initialSearchDoneRef.current) {
+        console.log('⏰ Geolocation timeout, searching at default location');
+        initialSearchDoneRef.current = true;
+        
+        // Test basic Places API call first
+        console.log('🧪 Testing Firebase Functions');
+        
+        try {
+          const testResult = await placesApiService.nearbySearch(
+            DEFAULT_LOCATION,
+            1000,
+            ['cafe'],
+            'cafe'
+          );
+          console.log('✅ Firebase Functions working, found', testResult.length, 'places');
+          searchNearby(DEFAULT_LOCATION, true);
+        } catch (error) {
+          console.log('❌ Firebase Functions test failed:', error);
+          // Still try the full search
+          searchNearby(DEFAULT_LOCATION, true);
+        }
+      }
+    }, 3000);
+
+    return () => clearTimeout(fallbackTimer);
+  }, [mapInstance, searchNearby]);
 
   // Add state for the ripple effect
   const [ripple, setRipple] = useState(null);

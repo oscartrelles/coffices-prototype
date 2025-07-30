@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Button, Typography, Card, CardContent, Avatar, Divider, CardMedia, IconButton, Tooltip, TextField, TextareaAutosize, Grid, Chip } from '@mui/material';
+import { Box, Button, Typography, Card, CardContent, Avatar, Divider, CardMedia, IconButton, Tooltip, TextField, TextareaAutosize, Grid, Chip, Modal } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CancelIcon from '@mui/icons-material/Cancel';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
@@ -13,6 +13,10 @@ import LanguageIcon from '@mui/icons-material/Language';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import WifiIcon from '@mui/icons-material/Wifi';
+import PowerIcon from '@mui/icons-material/Power';
+import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+import CoffeeIcon from '@mui/icons-material/Coffee';
 import colors from '../styles/colors';
 import LoadingSpinner from './common/LoadingSpinner';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
@@ -21,6 +25,9 @@ import { db, storage } from '../firebaseConfig';
 import { signOut } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import { collection, getDocs, query, where } from 'firebase/firestore';
+import placeCacheService from '../services/placeCache';
+import EmailSignIn from './auth/EmailSignIn';
+import GoogleSignIn from './auth/GoogleSignIn';
 
 function ProfilePage({ user, onSignInClick }) {
   const { userId } = useParams();
@@ -40,6 +47,7 @@ function ProfilePage({ user, onSignInClick }) {
   const [favoriteCofficesLoading, setFavoriteCofficesLoading] = useState(false);
   const [ratedCofficesCount, setRatedCofficesCount] = useState(0);
   const [ratedCofficesLoading, setRatedCofficesLoading] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -338,7 +346,6 @@ function ProfilePage({ user, onSignInClick }) {
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-      onSignInClick(); // Call the prop to trigger sign-in
       navigate('/');
     } catch (error) {
       console.error('Error signing out:', error);
@@ -346,11 +353,15 @@ function ProfilePage({ user, onSignInClick }) {
     }
   };
 
+  const handleSignInClick = () => {
+    setShowAuthModal(true);
+  };
+
   const triggerFileInput = () => {
     fileInputRef.current?.click();
   };
 
-  // Fetch favorite coffices data
+  // Fetch favorite coffices data from coffices collection
   const fetchFavoriteCoffices = async () => {
     if (!profile?.favoriteCoffices || profile.favoriteCoffices.length === 0) {
       setFavoriteCoffices([]);
@@ -359,35 +370,34 @@ function ProfilePage({ user, onSignInClick }) {
 
     setFavoriteCofficesLoading(true);
     try {
+      const placeIds = profile.favoriteCoffices;
+      console.log('🔄 Fetching favorite coffices from database:', placeIds.length);
+      
+      // Fetch from coffices collection instead of Google Places API
       const cofficesData = [];
       
-      for (const placeId of profile.favoriteCoffices) {
+      for (const placeId of placeIds) {
         try {
-          const service = new window.google.maps.places.PlacesService(document.createElement('div'));
+          const cofficeRef = doc(db, 'coffices', placeId);
+          const cofficeDoc = await getDoc(cofficeRef);
           
-          await new Promise((resolve, reject) => {
-            service.getDetails({
-              placeId: placeId,
-              fields: ['name', 'formatted_address', 'vicinity', 'photos', 'rating']
-            }, (placeDetails, status) => {
-              if (status === window.google.maps.places.PlacesServiceStatus.OK && placeDetails) {
-                cofficesData.push({
-                  placeId,
-                  name: placeDetails.name,
-                  address: placeDetails.formatted_address || placeDetails.vicinity,
-                  photo: placeDetails.photos?.[0],
-                  rating: placeDetails.rating
-                });
-              }
-              resolve();
+          if (cofficeDoc.exists()) {
+            const cofficeData = cofficeDoc.data();
+            cofficesData.push({
+              placeId: cofficeData.placeId,
+              name: cofficeData.name,
+              address: cofficeData.vicinity,
+              photo: { url: cofficeData.mainImageUrl }, // Use mainImageUrl from database
+              averageRatings: cofficeData.averageRatings || {}
             });
-          });
+          }
         } catch (error) {
-          console.error(`Error fetching place ${placeId}:`, error);
+          console.warn('⚠️ Could not fetch coffice:', placeId, error.message);
         }
       }
       
       setFavoriteCoffices(cofficesData);
+      console.log('✅ Loaded', cofficesData.length, 'favorite coffices from database');
     } catch (error) {
       console.error('Error fetching favorite coffices:', error);
     } finally {
@@ -397,14 +407,21 @@ function ProfilePage({ user, onSignInClick }) {
 
   // Fetch favorite coffices when profile loads
   useEffect(() => {
-    if (profile?.favoriteCoffices && window.google && window.google.maps) {
+    if (profile?.favoriteCoffices) {
       fetchFavoriteCoffices();
     }
   }, [profile?.favoriteCoffices]);
 
   const getPhotoUrl = (photo) => {
     if (!photo) return '/logo512.png';
-    return `${photo.getUrl({ maxWidth: 400, maxHeight: 300 })}`;
+    // Handle new format from database (photo.url) or old format from Google Places API
+    if (photo.url) {
+      return photo.url;
+    }
+    if (typeof photo.getUrl === 'function') {
+      return photo.getUrl({ maxWidth: 400, maxHeight: 300 });
+    }
+    return '/logo512.png';
   };
 
   // Fetch user's rated coffices count
@@ -1247,11 +1264,40 @@ function ProfilePage({ user, onSignInClick }) {
                                 {coffice.address}
                               </Typography>
                             </Box>
-                            {coffice.rating && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                <Typography variant="caption" sx={{ color: colors.text.secondary }}>
-                                  ⭐ {coffice.rating}
-                                </Typography>
+                            {coffice.averageRatings && Object.keys(coffice.averageRatings).length > 0 && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                                {coffice.averageRatings.wifi && (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                    <WifiIcon sx={{ fontSize: 12, color: colors.text.secondary }} />
+                                    <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+                                      {coffice.averageRatings.wifi.toFixed(1)}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                {coffice.averageRatings.power && (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                    <PowerIcon sx={{ fontSize: 12, color: colors.text.secondary }} />
+                                    <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+                                      {coffice.averageRatings.power.toFixed(1)}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                {coffice.averageRatings.noise && (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                    <VolumeUpIcon sx={{ fontSize: 12, color: colors.text.secondary }} />
+                                    <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+                                      {coffice.averageRatings.noise.toFixed(1)}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                {coffice.averageRatings.coffee && (
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                    <CoffeeIcon sx={{ fontSize: 12, color: colors.text.secondary }} />
+                                    <Typography variant="caption" sx={{ color: colors.text.secondary }}>
+                                      {coffice.averageRatings.coffee.toFixed(1)}
+                                    </Typography>
+                                  </Box>
+                                )}
                               </Box>
                             )}
                           </CardContent>
@@ -1329,6 +1375,45 @@ function ProfilePage({ user, onSignInClick }) {
           </CardContent>
         </Card>
       </Box>
+      
+      {/* Auth Modal */}
+      <Modal
+        open={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        aria-labelledby="auth-modal-title"
+        aria-describedby="auth-modal-description"
+      >
+        <Box sx={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: 400,
+          bgcolor: 'background.paper',
+          borderRadius: 2,
+          boxShadow: 24,
+          p: 4,
+        }}>
+          <Typography id="auth-modal-title" variant="h6" component="h2" sx={{ mb: 2 }}>
+            Sign in to continue
+          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <EmailSignIn 
+              onSuccess={() => setShowAuthModal(false)} 
+              setUser={() => {}} // This will be handled by the auth state listener
+            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ flex: 1, height: 1, bgcolor: 'divider' }} />
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>or</Typography>
+              <Box sx={{ flex: 1, height: 1, bgcolor: 'divider' }} />
+            </Box>
+            <GoogleSignIn 
+              onSuccess={() => setShowAuthModal(false)}
+              setUser={() => {}} // This will be handled by the auth state listener
+            />
+          </Box>
+        </Box>
+      </Modal>
     </Box>
   );
 }

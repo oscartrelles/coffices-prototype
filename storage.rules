@@ -2,7 +2,7 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     // Allow authenticated users to read and write their own profile photos
-    match /profile-photos/{userId}_{timestamp}.{extension} {
+    match /profile-pictures/{userId}/{allPaths=**} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
@@ -10,6 +10,12 @@ service firebase.storage {
     // Allow authenticated users to read and write their own user data
     match /users/{userId}/{allPaths=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow public read access to coffice images
+    match /coffice-images/{placeId}/main.jpg {
+      allow read: if true;
+      allow write: if false; // Only Firebase Functions can write
     }
     
     // Default rule - deny all other access
