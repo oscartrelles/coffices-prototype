@@ -200,12 +200,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     setSelectedShop(shop);
   }, [markerStyles]);
 
-  // Performance optimization: Memoize rating check function
-  const checkPlaceRatings = useCallback(async (placeId) => {
-    const q = query(collection(db, 'ratings'), where('placeId', '==', placeId));
-    const querySnapshot = await getDocs(q);
-    return !querySnapshot.empty;
-  }, []);
+
 
   // Add ref to track last update
   const lastUpdateRef = useRef(null);
@@ -239,14 +234,28 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     // Clear old markers ref
     markersRef.current = {};
     
+    // Batch check ratings for all places at once
+    const placesToCheck = coffeeShops.filter(place => !place.hasRatings).map(place => place.place_id);
+    let ratedPlaceIds = new Set();
+    
+    if (placesToCheck.length > 0) {
+      console.log('🔍 Batch checking ratings for', placesToCheck.length, 'places');
+      const batchQuery = query(
+        collection(db, 'ratings'), 
+        where('placeId', 'in', placesToCheck)
+      );
+      const batchSnapshot = await getDocs(batchQuery);
+      ratedPlaceIds = new Set(batchSnapshot.docs.map(doc => doc.data().placeId));
+    }
+    
     // Create or update markers using pooling
     for (const place of coffeeShops) {
       const isSelected = selectedShop?.place_id === place.place_id;
       const marker = createOrUpdateMarker(place, isSelected);
       markersRef.current[place.place_id] = marker;
       
-      // Check if this place has ratings (either from our database or from enhanced place data)
-      const hasRatings = place.hasRatings || await checkPlaceRatings(place.place_id);
+      // Check if this place has ratings (from our database or batch check)
+      const hasRatings = place.hasRatings || ratedPlaceIds.has(place.place_id);
       if (hasRatings) {
         marker.hasRatings = true;
         marker.setIcon(isSelected ? markerStyles.ratedSelected : markerStyles.rated);
@@ -254,7 +263,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     }
 
     console.log('✅ Updated', Object.keys(markersRef.current).length, 'markers using pooling');
-  }, [mapInstance, coffeeShops, selectedShop, markerStyles, handleMarkerClick, checkPlaceRatings, createOrUpdateMarker]);
+  }, [mapInstance, coffeeShops, selectedShop, markerStyles, handleMarkerClick, createOrUpdateMarker]);
 
   // 1. First define getSearchRadius
   const getSearchRadius = useCallback(() => {

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { BrowserRouter as Router, Route, Routes, BrowserRouter, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, BrowserRouter, useNavigate, useParams } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db, handleRedirectResult, logAnalyticsEvent } from './firebaseConfig';
@@ -334,6 +334,7 @@ function CofficePageWrapper() {
 function ProfilePageWrapper() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { userId } = useParams();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -348,6 +349,20 @@ function ProfilePageWrapper() {
     // For deep links, we'll redirect to the main app for sign in
     window.location.href = '/';
   };
+
+  // Validate userId if provided
+  useEffect(() => {
+    if (!isLoading && userId) {
+      // Check if userId is a valid Firebase UID format (28 characters, alphanumeric)
+      const isValidUid = /^[a-zA-Z0-9]{28}$/.test(userId);
+      if (!isValidUid) {
+        console.error('Invalid user ID format:', userId);
+        // Redirect to main app for invalid user IDs
+        window.location.href = '/';
+        return;
+      }
+    }
+  }, [userId, isLoading]);
 
   if (isLoading) {
     return <LoadingSpinner />;

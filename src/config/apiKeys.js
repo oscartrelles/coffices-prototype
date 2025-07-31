@@ -2,13 +2,11 @@
 // This file centralizes API key management for better security
 
 const getApiKeys = () => {
-  const environment = process.env.NODE_ENV;
   const hostname = window.location.hostname;
   
   // Determine environment
   const isProduction = hostname === 'findacoffice.com';
   const isStaging = hostname === 'find-a-coffice.web.app';
-  const isDevelopment = hostname === 'localhost' || hostname === '127.0.0.1';
 
   // Base configuration
   const config = {

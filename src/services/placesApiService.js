@@ -143,6 +143,7 @@ class PlacesApiService {
     let validEntries = 0;
     let expiredEntries = 0;
 
+    // eslint-disable-next-line no-unused-vars
     for (const [key, value] of this.cache.entries()) {
       if (now - value.timestamp < this.cacheTTL) {
         validEntries++;

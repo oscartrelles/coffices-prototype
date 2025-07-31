@@ -14,7 +14,6 @@ import WifiIcon from '@mui/icons-material/Wifi';
 import PowerIcon from '@mui/icons-material/Power';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import CoffeeIcon from '@mui/icons-material/Coffee';
-import ShareIcon from '@mui/icons-material/Share';
 import { keyframes } from '@mui/system';
 import { Link as RouterLink } from 'react-router-dom';
 
@@ -106,32 +105,6 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
   const handleRatingSubmit = () => {
     setShowRatingForm(false);
     setUserHasRated(true);
-  };
-
-  const handleShare = async () => {
-    const url = `${window.location.origin}/coffice/${place.place_id}`;
-    
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: place?.name || 'Check out this coffice!',
-          text: `Check out ${place?.name} on Coffices!`,
-          url: url
-        });
-      } else {
-        await navigator.clipboard.writeText(url);
-        alert('Link copied to clipboard!');
-      }
-    } catch (error) {
-      console.error('Error sharing:', error);
-      // Fallback to clipboard
-      try {
-        await navigator.clipboard.writeText(url);
-        alert('Link copied to clipboard!');
-      } catch (clipboardError) {
-        console.error('Error copying to clipboard:', clipboardError);
-      }
-    }
   };
 
   return (

@@ -1,7 +1,7 @@
 // Coffices Service - Manages the coffices collection
 // This service handles creating and updating coffice documents with location data and aggregated ratings
 
-import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs, writeBatch, deleteField } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, collection, getDocs, writeBatch, deleteField } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../firebaseConfig';
 
