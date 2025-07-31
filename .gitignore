@@ -4,3 +4,16 @@ node_modules
 .env.local
 build
 .DS_Store
+
+# Security - API Keys and Configuration
+.runtimeconfig.json
+firebase-debug.log
+firebase-debug.*.log
+*.key
+*.pem
+*.crt
+
+# Environment files
+.env.production
+.env.staging
+.env.development
