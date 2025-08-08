@@ -17,7 +17,8 @@ import SearchBar from './components/SearchBar';
 import Map from './components/Map';
 import PlaceDetails from './components/PlaceDetails';
 import LoadingSpinner from './components/common/LoadingSpinner';
-import AdminInterface from './components/AdminInterface';
+import AdminDashboard from './components/admin/AdminDashboard';
+import AdminRoute from './components/auth/AdminRoute';
 import CofficePage from './components/CofficePage';
 import ProfilePage from './components/ProfilePage';
 
@@ -329,7 +330,7 @@ function MainRouter() {
           <Routes>
             <Route path="/coffice/:placeId" element={<CofficePageWrapper />} />
             <Route path="/profile/:userId?" element={<ProfilePageWrapper />} />
-            <Route path="/hfdhghgghdhgdhgfgfh" element={<AdminInterface />} />
+            <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
             <Route path="/*" element={<App />} />
           </Routes>
         </BrowserRouter>
