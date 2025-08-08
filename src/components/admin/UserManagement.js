@@ -71,7 +71,7 @@ const UserManagement = () => {
       const userRef = doc(db, 'profiles', editingUser.id);
       await updateDoc(userRef, {
         displayName: editingUser.displayName,
-        role: editingUser.role,
+        userType: editingUser.userType,
         isDisabled: editingUser.isDisabled,
         updatedAt: new Date().toISOString()
       });
@@ -94,11 +94,11 @@ const UserManagement = () => {
     }
   };
 
-  const getRoleColor = (role) => {
-    switch (role) {
+  const getRoleColor = (userType) => {
+    switch (userType) {
       case 'admin': return 'error';
       case 'moderator': return 'warning';
-      case 'user': return 'default';
+      case 'regular': return 'default';
       default: return 'default';
     }
   };
@@ -159,8 +159,8 @@ const UserManagement = () => {
                 <TableCell>{user.email || 'No email'}</TableCell>
                 <TableCell>
                   <Chip 
-                    label={user.role || 'user'} 
-                    color={getRoleColor(user.role)}
+                    label={user.userType || 'regular'} 
+                    color={getRoleColor(user.userType)}
                     size="small"
                   />
                 </TableCell>
@@ -219,11 +219,11 @@ const UserManagement = () => {
             <FormControl fullWidth>
               <InputLabel>Role</InputLabel>
               <Select
-                value={editingUser?.role || 'user'}
-                onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
-                label="Role"
+                value={editingUser?.userType || 'regular'}
+                onChange={(e) => setEditingUser({ ...editingUser, userType: e.target.value })}
+                label="User Type"
               >
-                <MenuItem value="user">User</MenuItem>
+                <MenuItem value="regular">Regular</MenuItem>
                 <MenuItem value="moderator">Moderator</MenuItem>
                 <MenuItem value="admin">Admin</MenuItem>
               </Select>
@@ -266,10 +266,10 @@ const UserManagement = () => {
                   </Typography>
                 </Box>
               </Box>
-              <Box>
-                <Typography variant="subtitle2">Role</Typography>
-                <Chip label={viewingUser.role || 'user'} color={getRoleColor(viewingUser.role)} />
-              </Box>
+                              <Box>
+                  <Typography variant="subtitle2">User Type</Typography>
+                  <Chip label={viewingUser.userType || 'regular'} color={getRoleColor(viewingUser.userType)} />
+                </Box>
               <Box>
                 <Typography variant="subtitle2">Status</Typography>
                 <Chip 

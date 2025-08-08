@@ -1,20 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebaseConfig';
 import { Box, CircularProgress, Alert, Container } from '@mui/material';
 
-interface AdminRouteProps {
-  children: React.ReactNode;
-  requiredRole?: 'admin' | 'moderator';
-}
-
-const AdminRoute: React.FC<AdminRouteProps> = ({ children, requiredRole = 'admin' }) => {
-  const [user, setUser] = useState<User | null>(null);
+const AdminRoute = ({ children, requiredRole = 'admin' }) => {
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [error, setError] = useState(null);
+  const [userType, setUserType] = useState(null);
   const [isLoadingRole, setIsLoadingRole] = useState(true);
 
   useEffect(() => {
@@ -30,25 +25,25 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children, requiredRole = 'admin
   }, []);
 
   useEffect(() => {
-    const checkUserRole = async () => {
+    const checkUserType = async () => {
       if (user) {
         try {
           const userDoc = await getDoc(doc(db, 'profiles', user.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            setUserRole(userData.role || 'user');
+            setUserType(userData.userType || 'regular');
           } else {
-            setUserRole('user');
+            setUserType('regular');
           }
         } catch (error) {
-          console.error('Error checking user role:', error);
-          setUserRole('user');
+          console.error('Error checking user type:', error);
+          setUserType('regular');
         }
       }
       setIsLoadingRole(false);
     };
 
-    checkUserRole();
+    checkUserType();
   }, [user]);
 
   if (loading || isLoadingRole) {
@@ -77,8 +72,8 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children, requiredRole = 'admin
 
   // Check if user has required role
   const hasRequiredRole = requiredRole === 'admin' 
-    ? userRole === 'admin' 
-    : userRole === 'admin' || userRole === 'moderator';
+    ? userType === 'admin' 
+    : userType === 'admin' || userType === 'moderator';
 
   if (!hasRequiredRole) {
     return (

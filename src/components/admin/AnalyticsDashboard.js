@@ -32,7 +32,7 @@ import { db } from '../../firebaseConfig';
 import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
 import colors from '../../styles/colors';
 
-const AnalyticsDashboard = ({ userRole }) => {
+const AnalyticsDashboard = ({ userType }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [timeRange, setTimeRange] = useState('7d');

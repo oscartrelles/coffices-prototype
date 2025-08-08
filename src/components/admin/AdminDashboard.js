@@ -9,7 +9,7 @@ import {
   Alert,
   CircularProgress
 } from '@mui/material';
-import { useAuthState } from 'react-firebase-hooks/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import UserManagement from './UserManagement';
@@ -37,31 +37,45 @@ function TabPanel({ children, value, index, ...other }) {
 }
 
 function AdminDashboard() {
-  const [user, loading, error] = useAuthState(auth);
-  const [userRole, setUserRole] = useState(null);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [userType, setUserType] = useState(null);
   const [tabValue, setTabValue] = useState(0);
   const [isLoadingRole, setIsLoadingRole] = useState(true);
 
   useEffect(() => {
-    const checkUserRole = async () => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setLoading(false);
+    }, (error) => {
+      setError(error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const checkUserType = async () => {
       if (user) {
         try {
           const userDoc = await getDoc(doc(db, 'profiles', user.uid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            setUserRole(userData.role || 'user');
+            setUserType(userData.userType || 'regular');
           } else {
-            setUserRole('user');
+            setUserType('regular');
           }
         } catch (error) {
-          console.error('Error checking user role:', error);
-          setUserRole('user');
+          console.error('Error checking user type:', error);
+          setUserType('regular');
         }
       }
       setIsLoadingRole(false);
     };
 
-    checkUserRole();
+    checkUserType();
   }, [user]);
 
   const handleTabChange = (event, newValue) => {
@@ -69,8 +83,8 @@ function AdminDashboard() {
   };
 
   // Check if user has admin or moderator privileges
-  const hasAdminAccess = userRole === 'admin' || userRole === 'moderator';
-  const hasFullAdminAccess = userRole === 'admin';
+  const hasAdminAccess = userType === 'admin' || userType === 'moderator';
+  const hasFullAdminAccess = userType === 'admin';
 
   if (loading || isLoadingRole) {
     return (
@@ -118,7 +132,7 @@ function AdminDashboard() {
             Admin Dashboard
           </Typography>
           <Typography variant="body2" sx={{ px: 3, pb: 2, color: colors.text.secondary }}>
-            Welcome, {user.displayName || user.email} ({userRole})
+            Welcome, {user.displayName || user.email} ({userType})
           </Typography>
           <Tabs 
             value={tabValue} 
@@ -134,7 +148,7 @@ function AdminDashboard() {
         </Box>
 
         <TabPanel value={tabValue} index={0}>
-          <AnalyticsDashboard userRole={userRole} />
+          <AnalyticsDashboard userType={userType} />
         </TabPanel>
 
         <TabPanel value={tabValue} index={1}>
@@ -158,7 +172,7 @@ function AdminDashboard() {
         </TabPanel>
 
         <TabPanel value={tabValue} index={3}>
-          <RatingsManagement userRole={userRole} />
+          <RatingsManagement userType={userType} />
         </TabPanel>
       </Paper>
     </Container>

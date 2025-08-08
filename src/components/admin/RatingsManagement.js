@@ -31,7 +31,7 @@ import { db } from '../../firebaseConfig';
 import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import colors from '../../styles/colors';
 
-const RatingsManagement = ({ userRole }) => {
+const RatingsManagement = ({ userType }) => {
   const [ratings, setRatings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingRating, setEditingRating] = useState(null);
@@ -77,7 +77,7 @@ const RatingsManagement = ({ userRole }) => {
         coffee: editingRating.coffee,
         comment: editingRating.comment,
         updatedAt: new Date().toISOString(),
-        updatedBy: userRole
+        updatedBy: userType
       });
       setEditingRating(null);
       fetchRatings();
