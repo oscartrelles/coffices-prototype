@@ -28,7 +28,7 @@ function TabPanel({ children, value, index, ...other }) {
       {...other}
     >
       {value === index && (
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: 3, overflow: 'auto', maxHeight: 'calc(100vh - 200px)' }}>
           {children}
         </Box>
       )}
@@ -125,8 +125,8 @@ function AdminDashboard() {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-      <Paper elevation={3} sx={{ borderRadius: 2 }}>
+    <Container maxWidth="xl" sx={{ mt: 4, mb: 4, minHeight: '100vh' }}>
+      <Paper elevation={3} sx={{ borderRadius: 2, minHeight: 'calc(100vh - 100px)' }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider', backgroundColor: colors.background.paper }}>
           <Typography variant="h4" sx={{ p: 3, pb: 1, color: colors.text.primary }}>
             Admin Dashboard

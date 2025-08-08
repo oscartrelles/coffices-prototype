@@ -18,7 +18,8 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  IconButton
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -26,7 +27,8 @@ import {
   Star as StarIcon,
   Map as MapIcon,
   Timeline as TimelineIcon,
-  Error as ErrorIcon
+  Error as ErrorIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import { db } from '../../firebaseConfig';
 import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
@@ -120,13 +122,37 @@ const AnalyticsDashboard = ({ userType }) => {
 
       setTopCoffices(cofficesWithRatings);
 
-      // Mock recent events (in a real implementation, you'd fetch from analytics collection)
-      setRecentEvents([
-        { type: 'user_signup', user: 'user123', timestamp: new Date(Date.now() - 1000 * 60 * 30) },
-        { type: 'rating_submitted', user: 'user456', place: 'Coffee Shop A', timestamp: new Date(Date.now() - 1000 * 60 * 60) },
-        { type: 'place_selected', user: 'user789', place: 'Coffee Shop B', timestamp: new Date(Date.now() - 1000 * 60 * 90) },
-        { type: 'search_initiated', user: 'user101', query: 'coffee near me', timestamp: new Date(Date.now() - 1000 * 60 * 120) }
-      ]);
+      // Get recent ratings for activity feed
+      const recentRatings = ratingsSnapshot.docs
+        .slice(0, 5)
+        .map(doc => {
+          const rating = doc.data();
+          return {
+            type: 'rating_submitted',
+            user: rating.userId || 'Unknown',
+            place: rating.placeName || 'Unknown',
+            timestamp: new Date(rating.timestamp || Date.now())
+          };
+        });
+
+      // Get recent user signups
+      const recentUsers = usersSnapshot.docs
+        .slice(0, 3)
+        .map(doc => {
+          const user = doc.data();
+          return {
+            type: 'user_signup',
+            user: user.displayName || user.email || 'Unknown',
+            timestamp: new Date(user.createdAt || Date.now())
+          };
+        });
+
+      // Combine and sort by timestamp
+      const allEvents = [...recentRatings, ...recentUsers]
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 5);
+
+      setRecentEvents(allEvents);
 
     } catch (error) {
       console.error('Error fetching analytics data:', error);
@@ -174,19 +200,29 @@ const AnalyticsDashboard = ({ userType }) => {
         <Typography variant="h5">
           Analytics Dashboard
         </Typography>
-        <FormControl sx={{ minWidth: 120 }}>
-          <InputLabel>Time Range</InputLabel>
-          <Select
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value)}
-            label="Time Range"
-            size="small"
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <FormControl sx={{ minWidth: 120 }}>
+            <InputLabel>Time Range</InputLabel>
+            <Select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              label="Time Range"
+              size="small"
+            >
+              <MenuItem value="7d">Last 7 days</MenuItem>
+              <MenuItem value="30d">Last 30 days</MenuItem>
+              <MenuItem value="90d">Last 90 days</MenuItem>
+            </Select>
+          </FormControl>
+          <IconButton 
+            onClick={fetchAnalyticsData}
+            disabled={loading}
+            color="primary"
+            title="Refresh data"
           >
-            <MenuItem value="7d">Last 7 days</MenuItem>
-            <MenuItem value="30d">Last 30 days</MenuItem>
-            <MenuItem value="90d">Last 90 days</MenuItem>
-          </Select>
-        </FormControl>
+            <RefreshIcon />
+          </IconButton>
+        </Box>
       </Box>
 
       {error && (
@@ -363,6 +399,12 @@ const AnalyticsDashboard = ({ userType }) => {
               <Typography variant="h6" gutterBottom>
                 Analytics Insights
               </Typography>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  <strong>Note:</strong> This dashboard shows real-time data from Firestore. 
+                  For detailed user journey analytics, check Firebase Analytics console.
+                </Typography>
+              </Alert>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <Alert severity="info" icon={<TrendingUpIcon />}>
                   <Typography variant="body2">
