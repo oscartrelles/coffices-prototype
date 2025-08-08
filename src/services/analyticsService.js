@@ -4,6 +4,14 @@ import { analytics } from '../firebaseConfig';
 class AnalyticsService {
   constructor() {
     this.isEnabled = process.env.NODE_ENV === 'production' || process.env.REACT_APP_ENABLE_ANALYTICS === 'true';
+    this.sessionStartTime = Date.now();
+    this.currentJourney = [];
+    this.dropoffPoints = [];
+    this.sessionId = this.generateSessionId();
+  }
+
+  generateSessionId() {
+    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
   logEvent(eventName, parameters = {}) {
@@ -17,6 +25,8 @@ class AnalyticsService {
         user_agent: navigator.userAgent,
         screen_resolution: `${window.screen.width}x${window.screen.height}`,
         viewport_size: `${window.innerWidth}x${window.innerHeight}`,
+        session_id: this.sessionId,
+        session_duration: Date.now() - this.sessionStartTime,
         ...parameters
       });
     } catch (error) {
@@ -182,6 +192,48 @@ class AnalyticsService {
 
   trackSignOut() {
     this.logEvent('sign_out');
+  }
+
+  // Journey tracking
+  trackJourneyStep(step, data = {}) {
+    this.currentJourney.push({
+      step,
+      timestamp: Date.now(),
+      data
+    });
+    
+    this.logEvent('journey_step', {
+      step,
+      journey_position: this.currentJourney.length,
+      session_duration: Date.now() - this.sessionStartTime,
+      ...data
+    });
+  }
+
+  // Drop-off detection
+  trackDropoff(reason, context = {}) {
+    this.dropoffPoints.push({
+      reason,
+      timestamp: Date.now(),
+      journey_position: this.currentJourney.length,
+      context
+    });
+
+    this.logEvent('user_dropoff', {
+      dropoff_reason: reason,
+      journey_position: this.currentJourney.length,
+      session_duration: Date.now() - this.sessionStartTime,
+      ...context
+    });
+  }
+
+  // Session tracking
+  trackSessionEnd() {
+    this.logEvent('session_end', {
+      session_duration: Date.now() - this.sessionStartTime,
+      journey_length: this.currentJourney.length,
+      dropoff_count: this.dropoffPoints.length
+    });
   }
 
   // Error tracking

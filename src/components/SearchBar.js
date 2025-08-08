@@ -16,6 +16,14 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick, userLo
     // Track search initiation when user starts typing
     if (!previousValue.trim() && value.trim() && isMapLoaded) {
       analyticsService.trackSearchInitiated(value, 'search_bar');
+      analyticsService.trackJourneyStep('search_initiated', { query: value });
+    }
+
+    // Track search abandonment if user clears the search
+    if (previousValue.trim() && !value.trim()) {
+      analyticsService.trackDropoff('search_abandoned', { 
+        search_query: previousValue 
+      });
     }
 
     if (!value.trim() || !isMapLoaded) {
@@ -45,6 +53,10 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick, userLo
   const handleSuggestionClick = async (suggestion) => {
     // Track search suggestion click
     analyticsService.trackSearchSuggestionClicked(suggestion.description, suggestion.index);
+    analyticsService.trackJourneyStep('search_suggestion_selected', { 
+      suggestion: suggestion.description,
+      position: suggestion.index 
+    });
     
     const service = new window.google.maps.places.PlacesService(map);
     
@@ -97,6 +109,7 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick, userLo
         <button
           onClick={() => {
             analyticsService.trackCurrentLocationUsed();
+            analyticsService.trackJourneyStep('current_location_used');
             onLocationClick();
           }}
           style={components.searchBar.locationButton}

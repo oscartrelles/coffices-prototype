@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Typography, Rating, Stack, Button, TextField } from '@mui/material';
 import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import colors from '../styles/colors';
 import cofficesService from '../services/cofficesService';
+import analyticsService from '../services/analyticsService';
 
 function RatingForm({ placeId, place, user, onSubmit, onCancel }) {
   const [ratings, setRatings] = useState({
@@ -14,6 +15,16 @@ function RatingForm({ placeId, place, user, onSubmit, onCancel }) {
   });
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formStartTime] = useState(Date.now());
+
+  // Track form start
+  useEffect(() => {
+    analyticsService.trackRatingFormStarted(placeId, place?.name);
+    analyticsService.trackJourneyStep('rating_form_opened', {
+      place_id: placeId,
+      place_name: place?.name
+    });
+  }, [placeId, place?.name]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -88,10 +99,27 @@ function RatingForm({ placeId, place, user, onSubmit, onCancel }) {
       
       console.log('🎉 Rating submission completed successfully!');
       
+      // Track successful submission
+      analyticsService.trackRatingSubmitted(placeId, place?.name, isNewRating, ratings);
+      if (isNewRating) {
+        analyticsService.trackFirstRatingSubmitted(placeId, place?.name);
+      }
+      analyticsService.trackJourneyStep('rating_submitted', {
+        place_id: placeId,
+        place_name: place?.name,
+        is_new_rating: isNewRating,
+        rating_values: ratings
+      });
+      
       // Call the onSubmit callback
       onSubmit();
     } catch (error) {
       console.error('❌ Error saving rating:', error);
+      analyticsService.trackRatingSubmissionError(placeId, error.message);
+      analyticsService.trackError('rating_submission_error', error.message, {
+        place_id: placeId,
+        place_name: place?.name
+      });
       alert('Failed to save rating. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -160,7 +188,16 @@ function RatingForm({ placeId, place, user, onSubmit, onCancel }) {
         <Stack direction="row" spacing={1} sx={styles.buttons}>
           <Button 
             type="button" 
-            onClick={onCancel}
+            onClick={() => {
+              const timeSpent = Date.now() - formStartTime;
+              analyticsService.trackDropoff('rating_form_abandoned', {
+                place_id: placeId,
+                place_name: place?.name,
+                time_spent: timeSpent,
+                form_progress: Object.values(ratings).filter(r => r > 0).length
+              });
+              onCancel();
+            }}
             variant="outlined"
             size="small"
             sx={styles.cancelButton}

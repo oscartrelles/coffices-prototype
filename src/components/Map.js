@@ -195,6 +195,11 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
       shop.isRatedCoffice || false,
       shop.types
     );
+    analyticsService.trackJourneyStep('place_selected', {
+      place_id: shop.place_id,
+      place_name: shop.name,
+      has_ratings: shop.hasRatings || false
+    });
 
     // Reset all markers to their default style
     Object.values(markersRef.current).forEach(m => {

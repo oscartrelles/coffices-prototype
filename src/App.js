@@ -107,6 +107,18 @@ function App() {
     }
   }, [isLoading]);
 
+  // Track session end when user leaves the page
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      analyticsService.trackSessionEnd();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
   const handleSignInClick = () => {
     logAnalyticsEvent('sign_in_started');
     setShowAuthModal(true);

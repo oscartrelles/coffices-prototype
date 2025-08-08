@@ -493,6 +493,11 @@ function CofficePage({ user, onSignInClick }) {
                   variant="contained"
                   onClick={() => {
                     analyticsService.trackRateButtonClicked(placeId, place?.name);
+                    analyticsService.trackDropoff('authentication_required', {
+                      action_attempted: 'rate_coffice',
+                      place_id: placeId,
+                      place_name: place?.name
+                    });
                     setShowAuthModal(true);
                   }}
                   sx={{ 
