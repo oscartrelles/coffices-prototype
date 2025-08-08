@@ -136,7 +136,7 @@ const AnalyticsDashboard = ({ userType }) => {
         });
 
       // Get recent user signups
-      const recentUsers = usersSnapshot.docs
+      const recentUserEvents = usersSnapshot.docs
         .slice(0, 3)
         .map(doc => {
           const user = doc.data();
@@ -148,7 +148,7 @@ const AnalyticsDashboard = ({ userType }) => {
         });
 
       // Combine and sort by timestamp
-      const allEvents = [...recentRatings, ...recentUsers]
+      const allEvents = [...recentRatings, ...recentUserEvents]
         .sort((a, b) => b.timestamp - a.timestamp)
         .slice(0, 5);
 
