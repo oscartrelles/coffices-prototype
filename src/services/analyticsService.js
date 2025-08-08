@@ -236,6 +236,35 @@ class AnalyticsService {
     });
   }
 
+  // Funnel tracking
+  trackFunnelStep(funnelName, step, stepNumber, totalSteps, data = {}) {
+    this.logEvent('funnel_step', {
+      funnel_name: funnelName,
+      step_name: step,
+      step_number: stepNumber,
+      total_steps: totalSteps,
+      conversion_rate: stepNumber === 1 ? 100 : null, // Will be calculated in analytics
+      ...data
+    });
+  }
+
+  // User segmentation
+  trackUserSegment(segment, data = {}) {
+    this.logEvent('user_segment', {
+      segment,
+      ...data
+    });
+  }
+
+  // Feature usage tracking
+  trackFeatureUsage(feature, usageType = 'view', data = {}) {
+    this.logEvent('feature_usage', {
+      feature,
+      usage_type: usageType,
+      ...data
+    });
+  }
+
   // Error tracking
   trackError(errorType, errorMessage, context = {}) {
     this.logEvent('error_occurred', {

@@ -200,6 +200,10 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
       place_name: shop.name,
       has_ratings: shop.hasRatings || false
     });
+    analyticsService.trackFunnelStep('main_user_journey', 'place_selected', 3, 6, {
+      place_id: shop.place_id,
+      place_name: shop.name
+    });
 
     // Reset all markers to their default style
     Object.values(markersRef.current).forEach(m => {

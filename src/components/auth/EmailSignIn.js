@@ -37,11 +37,13 @@ const EmailSignIn = ({ onSuccess, setUser }) => {
           displayName: name
         });
         analyticsService.trackSignInCompleted('email_signup');
+        analyticsService.trackUserSegment('authenticated_user', { method: 'email_signup' });
         setUser(userCredential.user);
         onSuccess?.();
       } else {
         const result = await signInWithEmailAndPassword(auth, email, password);
         analyticsService.trackSignInCompleted('email_signin');
+        analyticsService.trackUserSegment('authenticated_user', { method: 'email_signin' });
         setUser(result.user);
         onSuccess?.();
       }

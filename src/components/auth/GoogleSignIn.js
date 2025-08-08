@@ -14,6 +14,7 @@ const GoogleSignIn = () => {
     try {
       await signInWithGoogle();
       analyticsService.trackSignInCompleted('google');
+      analyticsService.trackUserSegment('authenticated_user', { method: 'google' });
     } catch (error) {
       console.error('Google sign-in error:', error);
       analyticsService.trackError('sign_in_error', error.message, { method: 'google' });

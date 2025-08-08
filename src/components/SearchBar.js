@@ -17,6 +17,7 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick, userLo
     if (!previousValue.trim() && value.trim() && isMapLoaded) {
       analyticsService.trackSearchInitiated(value, 'search_bar');
       analyticsService.trackJourneyStep('search_initiated', { query: value });
+      analyticsService.trackFunnelStep('main_user_journey', 'search_initiated', 2, 6, { query: value });
     }
 
     // Track search abandonment if user clears the search

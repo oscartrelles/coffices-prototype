@@ -24,6 +24,10 @@ function RatingForm({ placeId, place, user, onSubmit, onCancel }) {
       place_id: placeId,
       place_name: place?.name
     });
+    analyticsService.trackFunnelStep('main_user_journey', 'rating_form_opened', 4, 6, {
+      place_id: placeId,
+      place_name: place?.name
+    });
   }, [placeId, place?.name]);
 
   const handleSubmit = async (e) => {
@@ -110,9 +114,21 @@ function RatingForm({ placeId, place, user, onSubmit, onCancel }) {
         is_new_rating: isNewRating,
         rating_values: ratings
       });
+      analyticsService.trackFunnelStep('main_user_journey', 'rating_submitted', 5, 6, {
+        place_id: placeId,
+        place_name: place?.name,
+        is_new_rating: isNewRating
+      });
       
       // Call the onSubmit callback
       onSubmit();
+      
+      // Track successful completion
+      analyticsService.trackFunnelStep('main_user_journey', 'rating_completed', 6, 6, {
+        place_id: placeId,
+        place_name: place?.name,
+        is_new_rating: isNewRating
+      });
     } catch (error) {
       console.error('❌ Error saving rating:', error);
       analyticsService.trackRatingSubmissionError(placeId, error.message);

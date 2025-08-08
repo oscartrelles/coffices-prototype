@@ -156,6 +156,7 @@ function CofficePage({ user, onSignInClick }) {
         });
         setIsFavorite(false);
         analyticsService.trackFavoriteRemoved(placeId, place?.name);
+        analyticsService.trackFeatureUsage('favorites', 'removed', { place_id: placeId });
       } else {
         // Add to favorites
         await updateDoc(profileRef, {
@@ -163,6 +164,7 @@ function CofficePage({ user, onSignInClick }) {
         });
         setIsFavorite(true);
         analyticsService.trackFavoriteAdded(placeId, place?.name);
+        analyticsService.trackFeatureUsage('favorites', 'added', { place_id: placeId });
       }
     } catch (error) {
       console.error('Error updating favorites:', error);
@@ -310,11 +312,13 @@ function CofficePage({ user, onSignInClick }) {
           url: url
         });
         analyticsService.trackShareCompleted(placeId, 'native');
+        analyticsService.trackFeatureUsage('sharing', 'native_share', { place_id: placeId });
       } else {
         await navigator.clipboard.writeText(url);
         setShareMsg('Link copied to clipboard!');
         setTimeout(() => setShareMsg(''), 2000);
         analyticsService.trackShareCompleted(placeId, 'clipboard');
+        analyticsService.trackFeatureUsage('sharing', 'clipboard_copy', { place_id: placeId });
       }
     } catch (error) {
       setShareMsg('Failed to share');

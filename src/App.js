@@ -99,6 +99,8 @@ function App() {
 
   useEffect(() => {
     analyticsService.trackAppLoaded();
+    // Track first step of main funnel
+    analyticsService.trackFunnelStep('main_user_journey', 'app_loaded', 1, 6);
   }, []);
 
   useEffect(() => {
