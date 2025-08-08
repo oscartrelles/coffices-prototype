@@ -10,6 +10,7 @@ import PropTypes from 'prop-types';
 import { useGeolocation } from '../hooks/useGeolocation';
 import placesApiService from '../services/placesApiService';
 import cofficesService from '../services/cofficesService';
+import analyticsService from '../services/analyticsService';
 
 const DEFAULT_LOCATION = { lat: 36.7213028, lng: -4.4216366 }; // Málaga
 const DEFAULT_ZOOM = 15;
@@ -186,8 +187,15 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
 
   // Performance optimization: Memoize marker click handler
   const handleMarkerClick = useCallback((marker, shop) => {
+    // Track marker click for analytics
+    analyticsService.trackMapMarkerClicked(
+      shop.place_id,
+      shop.name,
+      shop.hasRatings || false,
+      shop.isRatedCoffice || false,
+      shop.types
+    );
 
-    
     // Reset all markers to their default style
     Object.values(markersRef.current).forEach(m => {
       if (m !== marker) {
@@ -445,10 +453,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   const handleMapIdle = useCallback(() => {
     if (!mapInstance) return;
 
-
-
     if (isProgrammaticMoveRef.current) {
-  
       isProgrammaticMoveRef.current = false;
       return;
     }
@@ -461,21 +466,29 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
       lng: center.lng()
     };
 
+    // Track map movement for analytics
+    const bounds = mapInstance.getBounds();
+    const zoomLevel = mapInstance.getZoom();
+    if (bounds) {
+      analyticsService.trackMapMoved({
+        north: bounds.getNorthEast().lat(),
+        south: bounds.getSouthWest().lat(),
+        east: bounds.getNorthEast().lng(),
+        west: bounds.getSouthWest().lng()
+      }, zoomLevel);
+    }
+
     // If this is our first search or we've moved significantly, perform search
     if (!lastSearchLocation) {
-  
       searchNearby(newLocation);
     } else {
       const distance = calculateDistance(lastSearchLocation, newLocation);
       const searchRadius = getSearchRadius();
       
-  
-
       if (distance > searchRadius / 2) {
-    
         searchNearby(newLocation);
       } else {
-    
+        // Map moved but not enough to trigger new search
       }
     }
   }, [mapInstance, isInitialLoad, lastSearchLocation, searchNearby, getSearchRadius]);

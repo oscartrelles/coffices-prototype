@@ -7,6 +7,7 @@ import {
   updateProfile 
 } from 'firebase/auth';
 import { components } from '../../styles';
+import analyticsService from '../../services/analyticsService';
 
 const EmailSignIn = ({ onSuccess, setUser }) => {
   const [email, setEmail] = useState('');
@@ -25,33 +26,30 @@ const EmailSignIn = ({ onSuccess, setUser }) => {
     e.preventDefault();
     setError(null);
     
-    console.log('Attempting sign in/up:', { 
-      isSignUp, 
-      email, 
-      passwordLength: password.length 
-    });
+    // Track sign in/up initiation
+    analyticsService.trackSignInInitiated(isSignUp ? 'email_signup' : 'email_signin');
     
     try {
       if (isSignUp) {
-        console.log('Creating new user...');
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         
-        console.log('User created, updating profile...');
         await updateProfile(userCredential.user, {
           displayName: name
         });
-        console.log('Profile updated successfully');
+        analyticsService.trackSignInCompleted('email_signup');
         setUser(userCredential.user);
         onSuccess?.();
       } else {
-        console.log('Signing in existing user...');
         const result = await signInWithEmailAndPassword(auth, email, password);
-        console.log('Sign in successful:', result.user.email);
+        analyticsService.trackSignInCompleted('email_signin');
         setUser(result.user);
         onSuccess?.();
       }
     } catch (err) {
       console.error('Auth error:', err);
+      analyticsService.trackError('sign_in_error', err.message, { 
+        method: isSignUp ? 'email_signup' : 'email_signin' 
+      });
       setError(err.message);
     }
   };

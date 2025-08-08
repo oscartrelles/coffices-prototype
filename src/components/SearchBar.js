@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { components, icons } from '../styles';
 import SearchIcon from '@mui/icons-material/Search';
 import MyLocationIcon from '@mui/icons-material/MyLocation';
+import analyticsService from '../services/analyticsService';
 
 function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick, userLocation, mapCenter }) {
   const [searchValue, setSearchValue] = useState('');
@@ -9,7 +10,13 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick, userLo
 
   const handleInputChange = (e) => {
     const value = e.target.value;
+    const previousValue = searchValue;
     setSearchValue(value);
+
+    // Track search initiation when user starts typing
+    if (!previousValue.trim() && value.trim() && isMapLoaded) {
+      analyticsService.trackSearchInitiated(value, 'search_bar');
+    }
 
     if (!value.trim() || !isMapLoaded) {
       setSuggestions([]);
@@ -36,6 +43,9 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick, userLo
   };
 
   const handleSuggestionClick = async (suggestion) => {
+    // Track search suggestion click
+    analyticsService.trackSearchSuggestionClicked(suggestion.description, suggestion.index);
+    
     const service = new window.google.maps.places.PlacesService(map);
     
     service.getDetails(
@@ -85,7 +95,10 @@ function SearchBar({ onLocationSelect, isMapLoaded, map, onLocationClick, userLo
           style={components.searchBar.input}
         />
         <button
-          onClick={onLocationClick}
+          onClick={() => {
+            analyticsService.trackCurrentLocationUsed();
+            onLocationClick();
+          }}
           style={components.searchBar.locationButton}
           title="Use my location"
         >

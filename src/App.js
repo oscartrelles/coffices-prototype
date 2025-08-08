@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes, BrowserRouter, useNavigate, use
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db, handleRedirectResult, logAnalyticsEvent } from './firebaseConfig';
+import analyticsService from './services/analyticsService';
 import { HelmetProvider } from 'react-helmet-async';
 import getApiKeys from './config/apiKeys';
 import EmailSignIn from './components/auth/EmailSignIn';
@@ -97,8 +98,14 @@ function App() {
   }, []);
 
   useEffect(() => {
-    logAnalyticsEvent('app_loaded');
+    analyticsService.trackAppLoaded();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      analyticsService.trackPageView('map_view');
+    }
+  }, [isLoading]);
 
   const handleSignInClick = () => {
     logAnalyticsEvent('sign_in_started');
@@ -305,6 +312,7 @@ function MainRouter() {
 function CofficePageWrapper() {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { placeId } = useParams();
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -314,6 +322,14 @@ function CofficePageWrapper() {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      analyticsService.trackPageView('coffice_details', {
+        place_id: placeId
+      });
+    }
+  }, [isLoading, placeId]);
 
   const handleSignInClick = () => {
     // For deep links, we'll redirect to the main app for sign in
@@ -340,6 +356,14 @@ function ProfilePageWrapper() {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      analyticsService.trackPageView('profile', {
+        user_id: userId || 'current_user'
+      });
+    }
+  }, [isLoading, userId]);
 
   const handleSignInClick = () => {
     // For deep links, we'll redirect to the main app for sign in
