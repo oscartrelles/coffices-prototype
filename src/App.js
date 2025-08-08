@@ -6,6 +6,7 @@ import { auth, db, handleRedirectResult, logAnalyticsEvent } from './firebaseCon
 import analyticsService from './services/analyticsService';
 import { HelmetProvider } from 'react-helmet-async';
 import getApiKeys from './config/apiKeys';
+import ErrorBoundary from './components/ErrorBoundary';
 import EmailSignIn from './components/auth/EmailSignIn';
 import GoogleSignIn from './components/auth/GoogleSignIn';
 import Modal from './components/Modal';
@@ -101,6 +102,18 @@ function App() {
     analyticsService.trackAppLoaded();
     // Track first step of main funnel
     analyticsService.trackFunnelStep('main_user_journey', 'app_loaded', 1, 6);
+
+    // Track page load performance
+    if ('performance' in window) {
+      const perfData = performance.getEntriesByType('navigation')[0];
+      if (perfData) {
+        analyticsService.trackPageLoadPerformance(
+          perfData.loadEventEnd - perfData.loadEventStart,
+          perfData.domContentLoadedEventEnd - perfData.domContentLoadedEventStart,
+          perfData.domContentLoadedEventEnd - perfData.fetchStart
+        );
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -310,16 +323,18 @@ const styles = {
 
 function MainRouter() {
   return (
-    <HelmetProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/coffice/:placeId" element={<CofficePageWrapper />} />
-          <Route path="/profile/:userId?" element={<ProfilePageWrapper />} />
-          <Route path="/hfdhghgghdhgdhgfgfh" element={<AdminInterface />} />
-          <Route path="/*" element={<App />} />
-        </Routes>
-      </BrowserRouter>
-    </HelmetProvider>
+    <ErrorBoundary>
+      <HelmetProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/coffice/:placeId" element={<CofficePageWrapper />} />
+            <Route path="/profile/:userId?" element={<ProfilePageWrapper />} />
+            <Route path="/hfdhghgghdhgdhgfgfh" element={<AdminInterface />} />
+            <Route path="/*" element={<App />} />
+          </Routes>
+        </BrowserRouter>
+      </HelmetProvider>
+    </ErrorBoundary>
   );
 }
 

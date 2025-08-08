@@ -2,6 +2,7 @@
 // This service handles all Google Places API calls through our backend
 
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions';
+import analyticsService from './analyticsService';
 
 const functions = getFunctions();
 
@@ -23,6 +24,7 @@ class PlacesApiService {
 
   // Get nearby places using Firebase Functions
   async nearbySearch(location, radius = 1000, types = ['cafe'], keyword = 'cafe coffee shop wifi laptop') {
+    const startTime = Date.now();
     try {
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => {
@@ -39,12 +41,18 @@ class PlacesApiService {
       const result = await Promise.race([functionPromise, timeoutPromise]);
       
       if (result.data.status === 'OK') {
+        const duration = Date.now() - startTime;
+        analyticsService.trackApiPerformance('nearby_search', duration, true);
         return result.data.results;
       } else {
+        const duration = Date.now() - startTime;
+        analyticsService.trackApiPerformance('nearby_search', duration, false, new Error(result.data.status));
         console.error('❌ Nearby search failed:', result.data.status);
         throw new Error(`Places API error: ${result.data.status}`);
       }
     } catch (error) {
+      const duration = Date.now() - startTime;
+      analyticsService.trackApiPerformance('nearby_search', duration, false, error);
       console.error('❌ Error in nearbySearch:', error);
       console.error('❌ Error details:', error.message, error.code, error.details);
       throw error;
@@ -53,11 +61,14 @@ class PlacesApiService {
 
   // Get place details using Firebase Functions
   async getPlaceDetails(placeId, fields = 'name,geometry,vicinity,formatted_address,place_id,photos') {
+    const startTime = Date.now();
     try {
       // Check cache first
       const cacheKey = `details_${placeId}_${fields}`;
       const cached = this.getFromCache(cacheKey);
       if (cached) {
+        const duration = Date.now() - startTime;
+        analyticsService.trackApiPerformance('place_details_cache', duration, true);
         return cached;
       }
 
@@ -67,14 +78,20 @@ class PlacesApiService {
       });
       
       if (result.data.status === 'OK') {
+        const duration = Date.now() - startTime;
+        analyticsService.trackApiPerformance('place_details', duration, true);
         // Cache the result
         this.setCache(cacheKey, result.data.result);
         return result.data.result;
       } else {
+        const duration = Date.now() - startTime;
+        analyticsService.trackApiPerformance('place_details', duration, false, new Error(result.data.status));
         console.error('❌ Place details failed:', result.data.status);
         throw new Error(`Place Details API error: ${result.data.status}`);
       }
     } catch (error) {
+      const duration = Date.now() - startTime;
+      analyticsService.trackApiPerformance('place_details', duration, false, error);
       console.error('❌ Error in getPlaceDetails:', error);
       throw error;
     }
@@ -82,6 +99,7 @@ class PlacesApiService {
 
   // Batch get place details using Firebase Functions
   async batchGetPlaceDetails(placeIds, fields = 'name,geometry,vicinity,formatted_address,place_id,photos') {
+    const startTime = Date.now();
     try {
       const result = await batchGetPlaceDetailsFunction({
         placeIds,
@@ -89,12 +107,18 @@ class PlacesApiService {
       });
       
       if (result.data.status === 'OK') {
+        const duration = Date.now() - startTime;
+        analyticsService.trackApiPerformance('batch_place_details', duration, true, null, { place_count: placeIds.length });
         return result.data.results;
       } else {
+        const duration = Date.now() - startTime;
+        analyticsService.trackApiPerformance('batch_place_details', duration, false, new Error(result.data.status));
         console.error('❌ Batch place details failed:', result.data.status);
         throw new Error(`Batch Place Details API error: ${result.data.status}`);
       }
     } catch (error) {
+      const duration = Date.now() - startTime;
+      analyticsService.trackApiPerformance('batch_place_details', duration, false, error);
       console.error('❌ Error in batchGetPlaceDetails:', error);
       throw error;
     }

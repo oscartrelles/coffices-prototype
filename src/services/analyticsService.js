@@ -265,6 +265,35 @@ class AnalyticsService {
     });
   }
 
+  // Performance tracking
+  trackPerformance(metric, value, context = {}) {
+    this.logEvent('performance_metric', {
+      metric,
+      value,
+      ...context
+    });
+  }
+
+  // API performance tracking
+  trackApiPerformance(endpoint, duration, success, error = null) {
+    this.logEvent('api_performance', {
+      endpoint,
+      duration,
+      success,
+      error: error?.message || null,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  // Page load performance
+  trackPageLoadPerformance(loadTime, domContentLoaded, firstContentfulPaint) {
+    this.logEvent('page_load_performance', {
+      load_time: loadTime,
+      dom_content_loaded: domContentLoaded,
+      first_contentful_paint: firstContentfulPaint
+    });
+  }
+
   // Error tracking
   trackError(errorType, errorMessage, context = {}) {
     this.logEvent('error_occurred', {
