@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 
 const SEO = ({ 
@@ -9,8 +9,24 @@ const SEO = ({
   type = 'website',
   place = null
 }) => {
+  // Force re-render when place data changes to ensure meta tags update
+  useEffect(() => {
+    if (place) {
+      // Update document title immediately for better SEO
+      document.title = title;
+    }
+  }, [place, title]);
   const fullUrl = url || window.location.href;
-  const fullImageUrl = image.startsWith('http') ? image : `${window.location.origin}${image}`;
+  
+  // Handle image URL - ensure it's absolute
+  let fullImageUrl;
+  if (image.startsWith('http')) {
+    fullImageUrl = image;
+  } else if (image.startsWith('/')) {
+    fullImageUrl = `${window.location.origin}${image}`;
+  } else {
+    fullImageUrl = `${window.location.origin}/${image}`;
+  }
 
   const getStructuredData = () => {
     try {
@@ -45,11 +61,14 @@ const SEO = ({
 
   const generatePlaceStructuredData = (place) => {
     try {
+      const lat = typeof place.geometry?.location?.lat === 'function' ? place.geometry.location.lat() : place.geometry?.location?.lat;
+      const lng = typeof place.geometry?.location?.lng === 'function' ? place.geometry.location.lng() : place.geometry?.location?.lng;
+      
       return {
         "@context": "https://schema.org",
         "@type": "Restaurant",
         "name": place.name,
-        "description": `Coffee shop for remote work: ${place.name}`,
+        "description": `Coffee shop for remote work: ${place.name}. Great WiFi, power outlets, and coffee quality for remote workers.`,
         "url": fullUrl,
         "image": place.mainImageUrl || fullImageUrl,
         "address": {
@@ -58,11 +77,11 @@ const SEO = ({
           "addressLocality": place.vicinity || "",
           "addressCountry": "US"
         },
-        "geo": {
+        "geo": lat && lng ? {
           "@type": "GeoCoordinates",
-          "latitude": typeof place.geometry?.location?.lat === 'function' ? place.geometry.location.lat() : place.geometry?.location?.lat,
-          "longitude": typeof place.geometry?.location?.lng === 'function' ? place.geometry.location.lng() : place.geometry?.location?.lng
-        },
+          "latitude": lat,
+          "longitude": lng
+        } : undefined,
         "telephone": place.formatted_phone_number || "",
         "openingHours": place.opening_hours?.weekday_text || [],
         "priceRange": place.price_level ? "1".repeat(place.price_level) : "",
@@ -70,7 +89,24 @@ const SEO = ({
           "@type": "AggregateRating",
           "ratingValue": place.rating,
           "reviewCount": place.user_ratings_total || 0
-        } : undefined
+        } : undefined,
+        "amenityFeature": [
+          {
+            "@type": "LocationFeatureSpecification",
+            "name": "WiFi",
+            "value": true
+          },
+          {
+            "@type": "LocationFeatureSpecification", 
+            "name": "Power Outlets",
+            "value": true
+          },
+          {
+            "@type": "LocationFeatureSpecification",
+            "name": "Coffee",
+            "value": true
+          }
+        ]
       };
     } catch (error) {
       console.error('Error generating place structured data:', error);
@@ -96,6 +132,7 @@ const SEO = ({
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />
       <meta property="og:site_name" content="Coffices" />
+      <meta property="og:locale" content="en_US" />
       
       {/* Place-specific Open Graph tags */}
       {place && (
@@ -115,6 +152,8 @@ const SEO = ({
       <meta property="twitter:title" content={title} />
       <meta property="twitter:description" content={description} />
       <meta property="twitter:image" content={fullImageUrl} />
+      <meta property="twitter:site" content="@coffices" />
+      <meta property="twitter:creator" content="@coffices" />
 
       {/* Additional Meta Tags */}
       <meta name="robots" content="index, follow" />
@@ -123,6 +162,13 @@ const SEO = ({
       
       {/* Canonical URL */}
       <link rel="canonical" href={fullUrl} />
+      
+      {/* Additional social media meta tags */}
+      <meta name="theme-color" content="#4CAF50" />
+      <meta name="msapplication-TileColor" content="#4CAF50" />
+      <meta name="apple-mobile-web-app-capable" content="yes" />
+      <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+      <meta name="apple-mobile-web-app-title" content="Coffices" />
 
       {/* Structured Data */}
       {structuredData.map((data, index) => (

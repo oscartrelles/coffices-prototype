@@ -294,11 +294,19 @@ function CofficePage({ user, onSignInClick }) {
     analyticsService.trackShareInitiated(placeId, place?.name);
     
     const url = `${window.location.origin}/coffice/${placeId}`;
+    const shareTitle = place ? `${place.name} - Remote Work Coffee Shop` : 'Check out this coffice!';
+    const shareText = place ? 
+      `${place.name} - Perfect coffee shop for remote work! ${cofficeRatings ? 
+        `Rated ${cofficeRatings.averageRatings?.wifi?.toFixed(1) || '0'}/5 WiFi, ${cofficeRatings.averageRatings?.power?.toFixed(1) || '0'}/5 power outlets, ${cofficeRatings.averageRatings?.coffee?.toFixed(1) || '0'}/5 coffee by ${cofficeRatings.totalRatings} cofficers. ` : 
+        'Be the first to rate this coffice! '
+      }Located in ${place.vicinity}.` :
+      'Check out this coffice on Coffices!';
+    
     try {
       if (navigator.share) {
         await navigator.share({
-          title: place?.name || 'Check out this coffice!',
-          text: `Check out ${place?.name} on Coffices!`,
+          title: shareTitle,
+          text: shareText,
           url: url
         });
         analyticsService.trackShareCompleted(placeId, 'native');
@@ -346,18 +354,19 @@ function CofficePage({ user, onSignInClick }) {
   // Venue info card
   return (
     <>
+      {/* SEO component - always render to ensure meta tags are available */}
       <SEO 
-        title={`${place?.name || 'Coffice'} - Coffices`}
+        title={place ? `${place.name} - Remote Work Coffee Shop | Coffices` : 'Coffice - Coffices'}
         description={place ? 
-          `Check out ${place.name} on Coffices! ${cofficeRatings ? 
-            `Rated ${cofficeRatings.averageRatings?.wifi?.toFixed(1) || '0'}/5 by ${cofficeRatings.totalRatings} cofficers. ` : 
+          `${place.name} - Perfect coffee shop for remote work! ${cofficeRatings ? 
+            `Rated ${cofficeRatings.averageRatings?.wifi?.toFixed(1) || '0'}/5 WiFi, ${cofficeRatings.averageRatings?.power?.toFixed(1) || '0'}/5 power outlets, ${cofficeRatings.averageRatings?.coffee?.toFixed(1) || '0'}/5 coffee by ${cofficeRatings.totalRatings} cofficers. ` : 
             'Be the first to rate this coffice! '
-          }Great WiFi, power outlets, and coffee quality for remote work.` :
+          }Located in ${place.vicinity}. Great for remote work with WiFi, power outlets, and quality coffee.` :
           'Discover and rate the best coffee shops for remote work.'
         }
-        image={place?.mainImageUrl || '/Coffices.PNG'}
+        image={place?.mainImageUrl || `${window.location.origin}/Coffices.PNG`}
         url={`${window.location.origin}/coffice/${placeId}`}
-        type="restaurant"
+        type={place ? "restaurant" : "website"}
         place={place}
       />
       <Box sx={{ height: '100vh', backgroundColor: colors.background.main, display: 'block', overflowY: 'auto', py: { xs: 0, sm: 4 } }}>
