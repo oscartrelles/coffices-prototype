@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes, BrowserRouter, useNavigate, use
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db, handleRedirectResult, logAnalyticsEvent } from './firebaseConfig';
+import { HelmetProvider } from 'react-helmet-async';
 import getApiKeys from './config/apiKeys';
 import EmailSignIn from './components/auth/EmailSignIn';
 import GoogleSignIn from './components/auth/GoogleSignIn';
@@ -72,21 +73,18 @@ function App() {
 
   useEffect(() => {
     if (window.google) {
-      console.log('Google Maps already loaded');
       setIsMapLoaded(true);
       return;
     }
 
-    console.log('Loading Google Maps script');
     const script = document.createElement('script');
     const { mapsApiKey } = getApiKeys();
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places&loading=async&callback=initMap`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places&callback=initMap`;
     script.async = true;
     script.defer = true;
 
     // Define the callback function
     window.initMap = () => {
-      console.log('Google Maps loaded successfully');
       setIsMapLoaded(true);
     };
 
@@ -108,7 +106,6 @@ function App() {
   };
 
   const handleModalClose = () => {
-    console.log('Modal closing');
     setShowAuthModal(false);
   };
 
@@ -130,14 +127,11 @@ function App() {
   }, []);
 
   const handleLocationClick = useCallback(() => {
-    console.log('Location click handler called', { map, userLocation });
     if (!map) {
-      console.log('Waiting for map to be ready...');
       return;
     }
     
     if (!userLocation) {
-      console.log('No user location available');
       return;
     }
 
@@ -295,14 +289,16 @@ const styles = {
 
 function MainRouter() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/coffice/:placeId" element={<CofficePageWrapper />} />
-        <Route path="/profile/:userId?" element={<ProfilePageWrapper />} />
-        <Route path="/hfdhghgghdhgdhgfgfh" element={<AdminInterface />} />
-        <Route path="/*" element={<App />} />
-      </Routes>
-    </BrowserRouter>
+    <HelmetProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/coffice/:placeId" element={<CofficePageWrapper />} />
+          <Route path="/profile/:userId?" element={<ProfilePageWrapper />} />
+          <Route path="/hfdhghgghdhgdhgfgfh" element={<AdminInterface />} />
+          <Route path="/*" element={<App />} />
+        </Routes>
+      </BrowserRouter>
+    </HelmetProvider>
   );
 }
 

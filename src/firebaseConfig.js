@@ -15,11 +15,7 @@ import { getAnalytics, logEvent } from 'firebase/analytics';
 const isProduction = window.location.hostname === 'findacoffice.com';
 const isStaging = window.location.hostname === 'find-a-coffice.web.app';
 
-console.log('Environment detected:', {
-  hostname: window.location.hostname,
-  isProduction,
-  isStaging
-});
+
 
 // Dynamic auth domain based on environment
 const getAuthDomain = () => {
@@ -42,32 +38,27 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID
 };
 
-console.log("About to initialize Firebase with config:", {
-  authDomain: firebaseConfig.authDomain,
-  environment: isProduction ? 'PRODUCTION' : isStaging ? 'STAGING' : 'DEVELOPMENT'
-});
+
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+export { app };
 export const auth = getAuth(app);
 
 // Configure auth settings based on environment
 if (isProduction) {
   // Production settings
   auth.settings.appVerificationDisabledForTesting = false;
-  console.log('Firebase Auth configured for PRODUCTION');
 } else if (isStaging) {
   // Staging settings
   auth.settings.appVerificationDisabledForTesting = false;
-  console.log('Firebase Auth configured for STAGING');
 } else {
   // Development settings
-  console.log('Firebase Auth configured for DEVELOPMENT');
 }
 
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-const analytics = getAnalytics(app);
+export const analytics = getAnalytics(app);
 
 // Create a persistent provider instance
 const googleProvider = new GoogleAuthProvider();
@@ -76,10 +67,6 @@ googleProvider.addScope('profile');
 
 export const signInWithGoogle = async () => {
   try {
-    console.log('Starting Google sign-in process...', {
-      environment: isProduction ? 'PRODUCTION' : isStaging ? 'STAGING' : 'DEVELOPMENT',
-      hostname: window.location.hostname
-    });
     await signInWithRedirect(auth, googleProvider);
   } catch (error) {
     console.error('Sign-in error:', error.message);
@@ -91,7 +78,6 @@ export const handleRedirectResult = async () => {
   try {
     const result = await getRedirectResult(auth);
     if (result) {
-      console.log('Sign-in successful:', result.user.email);
       return result;
     }
   } catch (error) {
@@ -103,7 +89,6 @@ export const handleRedirectResult = async () => {
 export const signInWithEmail = async (email, password) => {
   try {
     const result = await signInWithEmailAndPassword(auth, email, password);
-    console.log('Email sign-in successful:', result.user.email);
     return result;
   } catch (error) {
     console.error('Sign-in error:', error.message);
@@ -114,7 +99,6 @@ export const signInWithEmail = async (email, password) => {
 export const signUpWithEmail = async (email, password) => {
   try {
     const result = await createUserWithEmailAndPassword(auth, email, password);
-    console.log('Email sign-up successful:', result.user.email);
     return result;
   } catch (error) {
     console.error('Sign-up error:', error.message);
@@ -127,5 +111,3 @@ export const logAnalyticsEvent = (eventName, eventParams = {}) => {
     logEvent(analytics, eventName, eventParams);
   }
 };
-
-export { analytics };

@@ -19,7 +19,7 @@ const SEARCH_RADIUS = 5000; // meters (5km) - increased to find more rated coffi
 
 // Performance optimization: Memoize the Map component
 function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, onUserLocation = () => {}, onClearSelectedLocation }) {
-  console.log('Map: Rendering with props:', { user, selectedLocation });
+
 
   // Near the top with other state declarations
   const [lastSearchLocation, setLastSearchLocation] = useState(null);
@@ -186,7 +186,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
 
   // Performance optimization: Memoize marker click handler
   const handleMarkerClick = useCallback((marker, shop) => {
-    console.log('Marker clicked:', shop.name);
+
     
     // Reset all markers to their default style
     Object.values(markersRef.current).forEach(m => {
@@ -208,18 +208,18 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   // Performance optimization: Optimize marker updates with pooling
   const updateMarkers = useCallback(async () => {
     if (!mapInstance || !coffeeShops.length) {
-      console.log('Cannot create markers:', { hasMap: !!mapInstance, shopCount: coffeeShops.length });
+  
       return;
     }
 
     // Check if we've already updated for these places
     const placesKey = coffeeShops.map(p => p.place_id).join(',');
     if (lastUpdateRef.current === placesKey) {
-      console.log('⏭️ Skipping duplicate marker update');
+  
       return;
     }
     
-    console.log('🎯 Updating markers for', coffeeShops.length, 'places');
+
     lastUpdateRef.current = placesKey;
     
     // Performance optimization: Clear only unused markers
@@ -239,7 +239,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     let ratedPlaceIds = new Set();
     
     if (placesToCheck.length > 0) {
-      console.log('🔍 Batch checking ratings for', placesToCheck.length, 'places');
+  
       const batchQuery = query(
         collection(db, 'ratings'), 
         where('placeId', 'in', placesToCheck)
@@ -262,7 +262,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
       }
     }
 
-    console.log('✅ Updated', Object.keys(markersRef.current).length, 'markers using pooling');
+
   }, [mapInstance, coffeeShops, selectedShop, markerStyles, handleMarkerClick, createOrUpdateMarker]);
 
   // 1. First define getSearchRadius
@@ -288,19 +288,19 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   // Function to fetch rated coffices from Firestore using the coffices collection
   const fetchRatedCoffices = useCallback(async (location, radius) => {
     try {
-      console.log('🏪 Fetching rated coffices from coffices collection for location:', location, 'radius:', radius);
+  
       
       // Use the coffices service to get nearby coffices
       const nearbyCoffices = await cofficesService.getCofficesNearby(location, radius);
       
       if (nearbyCoffices.length === 0) {
-        console.log('📭 No rated coffices found in database');
+
         return [];
       }
       
       // Convert to the format expected by the map component
       const ratedCoffices = nearbyCoffices.map(cofficeData => {
-        console.log('✅ Found rated coffice within range:', cofficeData.name);
+        
         
         return {
           place_id: cofficeData.placeId,
@@ -322,7 +322,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
         };
       });
       
-      console.log('🏪 Found', ratedCoffices.length, 'rated coffices within range (from coffices collection)');
+  
       return ratedCoffices;
       
     } catch (error) {
@@ -334,7 +334,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   // Update searchNearby to first fetch rated coffices, then supplement with Places API
   const searchNearby = useCallback(async (location, isProgrammatic = false) => {
     if (!location || !mapInstance) {
-      console.log('🚫 Cannot search:', { hasLocation: !!location, hasMap: !!mapInstance });
+  
       return;
     }
     
@@ -342,39 +342,39 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     if (lastSearchLocationRef.current && 
         lastSearchLocationRef.current.lat === location.lat && 
         lastSearchLocationRef.current.lng === location.lng) {
-      console.log('⏭️ Skipping duplicate search at same location');
+  
       return;
     }
     
-    console.log('🔍 searchNearby called with:', location, 'isProgrammatic:', isProgrammatic);
+
     
     // Update last search location before making the request
     lastSearchLocationRef.current = location;
     
     // Wait for map to be fully initialized with bounds
     if (!mapInstance.getBounds()) {
-      console.log('⏳ Waiting for map bounds to be available...');
+  
       // Wait a bit for the map to initialize
       await new Promise(resolve => setTimeout(resolve, 500));
     }
     
     const searchRadius = getSearchRadius();
-    console.log('📏 Using search radius:', searchRadius, 'meters');
+
     
     // First, fetch our rated coffices from Firestore
-    console.log('🏪 Starting database search for rated coffices...');
+
     const ratedCoffices = await fetchRatedCoffices(location, searchRadius);
     const ratedPlaceIds = new Set(ratedCoffices.map(place => place.place_id));
     
     // Show rated coffices immediately if we found any
     if (ratedCoffices.length > 0) {
-      console.log('📝 Showing rated coffices first:', ratedCoffices.length);
+  
       setCoffeeShops(ratedCoffices);
       setLastSearchLocation(location);
     }
     
     // Then fetch from Places API using Firebase Functions
-    console.log('🔍 Using Firebase Functions for nearby search');
+
     
     try {
       const newPlaces = await placesApiService.nearbySearch(
@@ -384,23 +384,23 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
         'cafe coffee shop wifi laptop'
       );
       
-      console.log('✅ Found nearby coffee shops from Firebase Functions:', newPlaces.length);
+  
       
       // Filter out places that are already in our rated coffices
       const filteredNewPlaces = newPlaces.filter(place => !ratedPlaceIds.has(place.place_id));
-      console.log('📝 Adding', filteredNewPlaces.length, 'new places from Firebase Functions');
+  
       
       // Combine rated coffices (prioritized) with new places
       const allPlaces = [...ratedCoffices, ...filteredNewPlaces];
       
-      console.log('🎯 Total places to display:', allPlaces.length, '(rated:', ratedCoffices.length, 'new:', filteredNewPlaces.length, ')');
+  
       setCoffeeShops(allPlaces);
       setLastSearchLocation(location);
       
     } catch (error) {
       console.error('❌ Error with Firebase Functions:', error);
       // Still show rated coffices even if Places API fails
-      console.log('📝 Showing only rated coffices due to error');
+  
       setCoffeeShops(ratedCoffices);
       setLastSearchLocation(location);
     }
@@ -410,7 +410,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   const centerMapOnLocation = useCallback((location) => {
     if (!mapInstance || !location) return;
     
-    console.log('Centering map on location:', location);
+
     const newCenter = new window.google.maps.LatLng(location.lat, location.lng);
     
     // Set flag before programmatic move
@@ -427,7 +427,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   // Then define debouncedSearch
   const debouncedSearch = useCallback(
     debounce((location) => {
-      console.log('Debounced search triggered at:', location);
+  
       searchNearby(location);
     }, 1000),
     [searchNearby]
@@ -436,7 +436,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   // Update effect to watch coffeeShops
   useEffect(() => {
     if (coffeeShops.length > 0) {
-      console.log('🔄 Updating markers due to new places:', coffeeShops.length);
+  
       updateMarkers();
     }
   }, [coffeeShops, updateMarkers]);
@@ -445,13 +445,10 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   const handleMapIdle = useCallback(() => {
     if (!mapInstance) return;
 
-    console.log('🌎 Map idle event fired:', {
-      isProgrammaticMove: isProgrammaticMoveRef.current,
-      isInitialLoad
-    });
+
 
     if (isProgrammaticMoveRef.current) {
-      console.log('⏭️ Skipping search - programmatic move');
+  
       isProgrammaticMoveRef.current = false;
       return;
     }
@@ -466,19 +463,19 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
 
     // If this is our first search or we've moved significantly, perform search
     if (!lastSearchLocation) {
-      console.log('🔍 Initial search at:', newLocation);
+  
       searchNearby(newLocation);
     } else {
       const distance = calculateDistance(lastSearchLocation, newLocation);
       const searchRadius = getSearchRadius();
       
-      console.log('📏 Distance moved:', Math.round(distance), 'm, Search radius:', searchRadius, 'm');
+  
 
       if (distance > searchRadius / 2) {
-        console.log('🔄 Significant movement detected, triggering search');
+    
         searchNearby(newLocation);
       } else {
-        console.log('⏭️ Movement too small, skipping search');
+    
       }
     }
   }, [mapInstance, isInitialLoad, lastSearchLocation, searchNearby, getSearchRadius]);
@@ -487,12 +484,12 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   useEffect(() => {
     if (!mapInstance) return;
 
-    console.log('Setting up map idle listener');
+
     const idleListener = mapInstance.addListener('idle', handleMapIdle);
 
     // Clean up function
     return () => {
-      console.log('Cleaning up map idle listener');
+  
       if (idleListener) {
         window.google.maps.event.removeListener(idleListener);
       }
@@ -504,7 +501,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   const handleLocationSelect = useCallback((location, mapInstance) => {
     if (!location) return;
     
-    console.log('Location selected:', location);
+
     
     // Only perform search if this is from a search action
     if (location.fromSearch) {
@@ -529,7 +526,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
         timestamp: new Date().toISOString()
       });
 
-      console.log('Rating saved successfully');
+
       setShowRatingForm(false);
     } catch (error) {
       console.error('Error saving rating:', error);
@@ -539,13 +536,13 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   // Update fetchCofficeRatings to work with ratings collection
   const fetchCofficeRatings = useCallback(async (placeId) => {
     try {
-      console.log('Fetching ratings for place:', placeId);
+
       const q = query(collection(db, 'ratings'), where('placeId', '==', placeId));
       const querySnapshot = await getDocs(q);
       
       if (!querySnapshot.empty) {
         const ratings = querySnapshot.docs.map(doc => doc.data());
-        console.log('Raw ratings from DB:', ratings);
+
         
         // Initialize counters for each category
         const totals = {
@@ -572,7 +569,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
             totals[key].sum / totals[key].count : 0;
         });
 
-        console.log('Final calculated averages:', finalAverages);
+
         
         setCofficeRatings({
           averageRatings: finalAverages,
@@ -650,7 +647,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
 
     setMapInstance(map);
     if (onMapInstance) {
-      console.log('Sharing map instance with parent');
+  
       onMapInstance(map);
     }
   }, [onMapInstance]);
@@ -662,11 +659,11 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     // Check if we've already handled this exact location
     if (lastHandledLocationRef.current?.lat === selectedLocation.lat && 
         lastHandledLocationRef.current?.lng === selectedLocation.lng) {
-      console.log('📍 Skipping duplicate location change');
+  
       return;
     }
 
-    console.log('📍 Handling new location change:', selectedLocation);
+
     
     // Update last handled location
     lastHandledLocationRef.current = selectedLocation;
@@ -684,7 +681,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     
     // If it's a venue from search, show the PlaceDetails
     if (selectedLocation.fromSearch && selectedLocation.isVenue && selectedLocation.placeData) {
-      console.log('🏢 Showing venue details for:', selectedLocation.name);
+  
       setSelectedShop(selectedLocation.placeData);
     }
     else
@@ -727,10 +724,10 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     useCallback((location) => {
       if (!mapInstance || !location || initialSearchDoneRef.current) return;
 
-      console.log('📍 Handling geolocation update:', location);
+  
       
       if (!isLocationInitialized && !selectedLocation) {
-        console.log('📍 Initial center on user location:', location);
+    
         isProgrammaticMoveRef.current = true;
         mapInstance.panTo(location);
         mapInstance.setZoom(DEFAULT_ZOOM);
@@ -738,7 +735,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
         
         // Perform initial search only once
         if (!initialSearchDoneRef.current) {
-          console.log('🔍 Performing initial location search');
+      
           initialSearchDoneRef.current = true;
           searchNearby(location, true);
         }
@@ -754,7 +751,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   // Remove or update other effects that might trigger location initialization
   useEffect(() => {
     if (geoLocation) {
-      console.log('📍 Updated user location:', geoLocation);
+  
       setCurrentLocation(geoLocation);
     }
   }, [geoLocation]);
@@ -765,11 +762,11 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
 
     const fallbackTimer = setTimeout(async () => {
       if (!initialSearchDoneRef.current) {
-        console.log('⏰ Geolocation timeout, searching at default location');
+    
         initialSearchDoneRef.current = true;
         
         // Test basic Places API call first
-        console.log('🧪 Testing Firebase Functions');
+    
         
         try {
           const testResult = await placesApiService.nearbySearch(
@@ -778,10 +775,10 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
             ['cafe'],
             'cafe'
           );
-          console.log('✅ Firebase Functions working, found', testResult.length, 'places');
+      
           searchNearby(DEFAULT_LOCATION, true);
         } catch (error) {
-          console.log('❌ Firebase Functions test failed:', error);
+      
           // Still try the full search
           searchNearby(DEFAULT_LOCATION, true);
         }

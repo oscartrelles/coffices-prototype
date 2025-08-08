@@ -57,19 +57,11 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
   }, [user, place.place_id]);
 
   const getDistance = () => {
-    console.log('getDistance called with:', {
-      userLocation,
-      placeGeometry: place.geometry,
-      isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-    });
-
     if (!userLocation) {
-      console.log('No user location available');
       return null;
     }
 
     if (!place.geometry?.location) {
-      console.log('No place geometry available');
       return null;
     }
 
@@ -82,13 +74,7 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
         : place.geometry.location.lng
     };
 
-    console.log('Location data:', {
-      userLocation,
-      placeLocation
-    });
-
     const calculatedDistance = calculateDistance(userLocation, placeLocation);
-    console.log('Calculated distance:', calculatedDistance);
     return calculatedDistance;
   };
 
@@ -190,15 +176,9 @@ function PlaceDetails({ place, userLocation, user, onSignInRequired, cofficeRati
                 </div>
                 <RouterLink
                   as="span"
-                  to={user ? `/coffice/${place.place_id}` : undefined}
+                  to={`/coffice/${place.place_id}`}
                   style={{ textDecoration: 'underline', color: colors.text.disabled, cursor: 'pointer' }}
-                  title={user ? 'See all reviews for this coffice' : 'Sign in to see reviews'}
-                  onClick={e => {
-                    if (!user) {
-                      e.preventDefault();
-                      onSignInRequired && onSignInRequired();
-                    }
-                  }}
+                  title="See all reviews for this coffice"
                 >
                   ({cofficeRatings.totalRatings} {cofficeRatings.totalRatings === 1 ? 'rating' : 'ratings'})
                 </RouterLink>

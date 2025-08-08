@@ -10,56 +10,30 @@ class CofficesService {
   async createOrUpdateCoffice(placeData, ratingData = null) {
     try {
       const placeId = placeData.place_id;
-      console.log('🔄 Starting createOrUpdateCoffice for placeId:', placeId);
-      console.log('📊 Place data received:', {
-        name: placeData.name,
-        hasPhotos: !!placeData.photos,
-        photoCount: placeData.photos?.length || 0,
-        hasPhotoReference: !!(placeData.photos && placeData.photos[0]?.photo_reference)
-      });
       
       // If we don't have photos but this is a new coffice, try to fetch fresh data with photos
       let enhancedPlaceData = placeData;
-      console.log('🔍 Checking if fresh fetch is needed...');
-      console.log('🔍 placeData.photos:', placeData.photos);
-      console.log('🔍 placeData.photos?.length:', placeData.photos?.length);
-      console.log('🔍 Condition check:', !placeData.photos || placeData.photos.length === 0);
       
       if (!placeData.photos || placeData.photos.length === 0) {
-        console.log('🔄 No photos in place data, attempting fresh fetch with photos...');
         try {
           // Import here to avoid circular dependency
           const placeCacheModule = await import('./placeCache.js');
           const placeCacheService = placeCacheModule.default;
-          console.log('📦 PlaceCacheService imported successfully');
           
           placeCacheService.clearPlaceCache(placeId);
-          console.log('🧹 Cache cleared for placeId:', placeId);
           
           const freshPlaceData = await placeCacheService.getPlaceDetails(placeId, [
             'geometry', 'name', 'formatted_address', 'vicinity', 
             'place_id', 'types', 'rating', 'user_ratings_total', 'photos'
           ]);
           
-          console.log('📥 Fresh place data received:', {
-            name: freshPlaceData.name,
-            hasPhotos: !!freshPlaceData.photos,
-            photoCount: freshPlaceData.photos?.length || 0
-          });
-          
           if (freshPlaceData.photos && freshPlaceData.photos.length > 0) {
-            console.log('✅ Fresh fetch successful, found photos:', freshPlaceData.photos.length);
             enhancedPlaceData = freshPlaceData;
-          } else {
-            console.log('📭 Fresh fetch completed but still no photos available');
           }
         } catch (error) {
           console.error('❌ Error fetching fresh place data:', error);
-          console.error('❌ Error details:', error.message);
           // Continue with original data
         }
-      } else {
-        console.log('✅ Place data already has photos, no fresh fetch needed');
       }
       
       const cofficeRef = doc(db, 'coffices', placeId);
@@ -68,7 +42,6 @@ class CofficesService {
       const existingDoc = await getDoc(cofficeRef);
       
       if (existingDoc.exists()) {
-        console.log('📝 Updating existing coffice:', placeId);
         // Update existing coffice
         const updateData = {
           lastUpdated: new Date().toISOString()
@@ -92,51 +65,37 @@ class CofficesService {
         }
         
         await updateDoc(cofficeRef, updateData);
-        console.log('✅ Updated existing coffice:', placeId);
         
       } else {
-        console.log('🆕 Creating new coffice:', placeId);
         // Create new coffice document
         
         // Check if we have photos to download
         let mainImageUrl = null;
         if (enhancedPlaceData.photos && enhancedPlaceData.photos.length > 0) {
-          console.log('🖼️ Found photos, attempting to download image...');
-          console.log('📸 Photo object structure:', enhancedPlaceData.photos[0]);
-          console.log('📸 Photo properties:', Object.keys(enhancedPlaceData.photos[0]));
-          
           const photo = enhancedPlaceData.photos[0];
           
           // Check if photo has getUrl method (new format) or photo_reference (old format)
           if (photo.getUrl && typeof photo.getUrl === 'function') {
-            console.log('📸 Using getUrl() method for photo URL');
             try {
               // Get the photo URL directly using getUrl()
               const photoUrl = photo.getUrl({ maxWidth: 400, maxHeight: 300 });
-              console.log('📸 Photo URL from getUrl():', photoUrl);
               
               // Download and store the image using the URL
               mainImageUrl = await this.downloadAndStoreImageFromUrl(photoUrl, placeId);
-              console.log('✅ Image download result:', mainImageUrl);
             } catch (error) {
               console.error('❌ Image download failed:', error);
               mainImageUrl = null;
             }
           } else if (photo.photo_reference) {
-            console.log('📸 Using photo_reference for photo download');
             try {
               mainImageUrl = await this.downloadAndStoreImage(photo.photo_reference, placeId, 400, 300);
-              console.log('✅ Image download result:', mainImageUrl);
             } catch (error) {
               console.error('❌ Image download failed:', error);
               mainImageUrl = null;
             }
           } else {
-            console.log('⚠️ Photo object has neither getUrl() method nor photo_reference');
             mainImageUrl = null;
           }
-        } else {
-          console.log('📭 No photos available for this place');
         }
         
         const cofficeData = {
@@ -168,15 +127,7 @@ class CofficesService {
           lastUpdated: new Date().toISOString()
         };
         
-        console.log('💾 Saving coffice data to Firestore:', {
-          placeId: cofficeData.placeId,
-          name: cofficeData.name,
-          hasImage: !!cofficeData.mainImageUrl,
-          imageUrl: cofficeData.mainImageUrl
-        });
-        
         await setDoc(cofficeRef, cofficeData);
-        console.log('✅ Created new coffice:', placeId);
       }
       
       return true;
@@ -208,18 +159,13 @@ class CofficesService {
   // Get coffices within a radius of a location
   async getCofficesNearby(location, radius) {
     try {
-      console.log('🔍 Fetching coffices from database for location:', location, 'radius:', radius);
-      
       // Get all coffices from the collection
       const cofficesRef = collection(db, 'coffices');
       const querySnapshot = await getDocs(cofficesRef);
       
       if (querySnapshot.empty) {
-        console.log('📭 No coffices found in database');
         return [];
       }
-      
-      console.log('📊 Found', querySnapshot.size, 'coffices in database');
       
       // Filter by distance
       const nearbyCoffices = [];
@@ -249,7 +195,6 @@ class CofficesService {
       // Sort by distance
       nearbyCoffices.sort((a, b) => a.distance - b.distance);
       
-      console.log('✅ Found', nearbyCoffices.length, 'coffices within', radius, 'meters');
       return nearbyCoffices;
       
     } catch (error) {

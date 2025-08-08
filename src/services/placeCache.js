@@ -20,10 +20,8 @@ class PlaceCacheService {
     // Check session cache first (fastest)
     const sessionCached = this.getFromSessionCache(placeId);
     if (sessionCached) {
-      console.log('📦 Place details found in session cache:', placeId);
       // If we need photos but cached data doesn't have them, force fresh fetch
       if (fields && fields.includes('photos') && (!sessionCached.photos || sessionCached.photos.length === 0)) {
-        console.log('🔄 Cached data missing photos, forcing fresh fetch for:', placeId);
         this.clearPlaceCache(placeId);
       } else {
         return sessionCached;
@@ -33,10 +31,8 @@ class PlaceCacheService {
     // Check local storage cache
     const localCached = this.getFromLocalCache(placeId);
     if (localCached) {
-      console.log('💾 Place details found in local cache:', placeId);
       // If we need photos but cached data doesn't have them, force fresh fetch
       if (fields && fields.includes('photos') && (!localCached.photos || localCached.photos.length === 0)) {
-        console.log('🔄 Cached data missing photos, forcing fresh fetch for:', placeId);
         this.clearPlaceCache(placeId);
       } else {
         // Move to session cache for faster access
@@ -56,7 +52,6 @@ class PlaceCacheService {
       this.setLocalCache(placeId, details);
       this.setSessionCache(placeId, details);
       
-      console.log('🌐 Place details fetched from API:', placeId);
       return details;
     } finally {
       // Clean up request queue
@@ -299,7 +294,7 @@ class PlaceCacheService {
     try {
       const cacheKey = `place_${placeId}`;
       localStorage.removeItem(cacheKey);
-      console.log('🧹 Cleared place cache for:', placeId);
+
     } catch (error) {
       console.error('Error clearing place cache:', error);
     }

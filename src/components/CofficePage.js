@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Button, Typography, Tooltip, Card, CardContent, CardMedia, Divider, IconButton, Modal } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -12,12 +12,15 @@ import CoffeeIcon from '@mui/icons-material/Coffee';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import colors from '../styles/colors';
 import LoadingSpinner from './common/LoadingSpinner';
-import useGoogleMaps from '../hooks/useGoogleMaps';
+
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import cofficesService from '../services/cofficesService';
+import analyticsService from '../services/analyticsService';
+
 import EmailSignIn from './auth/EmailSignIn';
 import GoogleSignIn from './auth/GoogleSignIn';
+import SEO from './SEO';
+import RatingForm from './RatingForm';
 
 const FALLBACK_IMAGE = '/logo512.png';
 
@@ -43,14 +46,15 @@ function CofficePage({ user, onSignInClick }) {
   const [cofficeReviews, setCofficeReviews] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { loaded: mapsLoaded, error: mapsError } = useGoogleMaps();
+
   const [shareMsg, setShareMsg] = useState('');
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
   const [userProfiles, setUserProfiles] = useState({});
-  const [profilesLoading, setProfilesLoading] = useState(false);
+
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showRatingForm, setShowRatingForm] = useState(false);
 
   // Check if this place is in user's favorites
   useEffect(() => {
@@ -98,7 +102,6 @@ function CofficePage({ user, onSignInClick }) {
   const fetchUserProfiles = async (reviews) => {
     if (!reviews || reviews.length === 0) return;
     
-    setProfilesLoading(true);
     try {
       const userIds = [...new Set(reviews.map(review => review.userId).filter(Boolean))];
       const profiles = {};
@@ -126,8 +129,6 @@ function CofficePage({ user, onSignInClick }) {
       setUserProfiles(prev => ({ ...prev, ...profiles }));
     } catch (error) {
       console.error('Error fetching user profiles:', error);
-    } finally {
-      setProfilesLoading(false);
     }
   };
 
@@ -154,12 +155,14 @@ function CofficePage({ user, onSignInClick }) {
           favoriteCoffices: arrayRemove(placeId)
         });
         setIsFavorite(false);
+        analyticsService.trackFavoriteRemoved(placeId, place?.name);
       } else {
         // Add to favorites
         await updateDoc(profileRef, {
           favoriteCoffices: arrayUnion(placeId)
         });
         setIsFavorite(true);
+        analyticsService.trackFavoriteAdded(placeId, place?.name);
       }
     } catch (error) {
       console.error('Error updating favorites:', error);
@@ -168,24 +171,18 @@ function CofficePage({ user, onSignInClick }) {
     }
   };
 
-  // Log when place data changes (for debugging)
+  // Track place details viewed when place data changes
   useEffect(() => {
     if (place) {
-      console.log('🖼️ Coffice data loaded:', {
-        name: place.name,
-        mainImageUrl: place.mainImageUrl,
-        hasImage: !!place.mainImageUrl
-      });
+      analyticsService.trackPlaceDetailsViewed(
+        placeId, 
+        place.name, 
+        cofficeRatings ? true : false
+      );
     }
-  }, [place]);
+  }, [place, placeId, cofficeRatings]);
 
   useEffect(() => {
-    if (!mapsLoaded) return;
-    if (mapsError) {
-      setError('Google Maps failed to load');
-      setIsLoading(false);
-      return;
-    }
     const fetchCofficeData = async () => {
       if (!placeId) {
         setError('No place ID provided');
@@ -247,7 +244,7 @@ function CofficePage({ user, onSignInClick }) {
       }
     };
     fetchCofficeData();
-  }, [placeId, mapsLoaded, mapsError]);
+  }, [placeId]);
 
   const fetchCofficeRatingsAndReviews = async (placeId) => {
     try {
@@ -294,6 +291,8 @@ function CofficePage({ user, onSignInClick }) {
   };
 
   const handleShare = async () => {
+    analyticsService.trackShareInitiated(placeId, place?.name);
+    
     const url = `${window.location.origin}/coffice/${placeId}`;
     try {
       if (navigator.share) {
@@ -302,10 +301,12 @@ function CofficePage({ user, onSignInClick }) {
           text: `Check out ${place?.name} on Coffices!`,
           url: url
         });
+        analyticsService.trackShareCompleted(placeId, 'native');
       } else {
         await navigator.clipboard.writeText(url);
         setShareMsg('Link copied to clipboard!');
         setTimeout(() => setShareMsg(''), 2000);
+        analyticsService.trackShareCompleted(placeId, 'clipboard');
       }
     } catch (error) {
       setShareMsg('Failed to share');
@@ -313,13 +314,13 @@ function CofficePage({ user, onSignInClick }) {
     }
   };
 
-  if (!mapsLoaded && !mapsError) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: colors.background.main }}>
-        <LoadingSpinner />
-      </Box>
-    );
-  }
+  const handleRatingSubmit = () => {
+    setShowRatingForm(false);
+    // Refresh the reviews to show the new rating
+    fetchCofficeRatingsAndReviews(placeId);
+  };
+
+
 
   if (isLoading) {
     return (
@@ -344,7 +345,22 @@ function CofficePage({ user, onSignInClick }) {
 
   // Venue info card
   return (
-    <Box sx={{ height: '100vh', backgroundColor: colors.background.main, display: 'block', overflowY: 'auto', py: { xs: 0, sm: 4 } }}>
+    <>
+      <SEO 
+        title={`${place?.name || 'Coffice'} - Coffices`}
+        description={place ? 
+          `Check out ${place.name} on Coffices! ${cofficeRatings ? 
+            `Rated ${cofficeRatings.averageRatings?.wifi?.toFixed(1) || '0'}/5 by ${cofficeRatings.totalRatings} cofficers. ` : 
+            'Be the first to rate this coffice! '
+          }Great WiFi, power outlets, and coffee quality for remote work.` :
+          'Discover and rate the best coffee shops for remote work.'
+        }
+        image={place?.mainImageUrl || '/Coffices.PNG'}
+        url={`${window.location.origin}/coffice/${placeId}`}
+        type="restaurant"
+        place={place}
+      />
+      <Box sx={{ height: '100vh', backgroundColor: colors.background.main, display: 'block', overflowY: 'auto', py: { xs: 0, sm: 4 } }}>
       <Card sx={{ width: '100%', maxWidth: 600, mb: 4, boxShadow: 3, borderRadius: 3, mx: 'auto', position: 'relative' }}>
         {/* Hero image with overlayed buttons */}
         <Box sx={{ position: 'relative' }}>
@@ -356,11 +372,9 @@ function CofficePage({ user, onSignInClick }) {
               alt={place.name}
               sx={{ objectFit: 'cover', borderTopLeftRadius: 12, borderTopRightRadius: 12 }}
               onError={e => { 
-                console.error('❌ Image failed to load:', place.mainImageUrl);
                 e.target.onerror = null; 
                 e.target.src = FALLBACK_IMAGE; 
               }}
-              onLoad={() => console.log('✅ Image loaded successfully:', place.mainImageUrl)}
             />
           ) : (
             <CardMedia
@@ -445,9 +459,58 @@ function CofficePage({ user, onSignInClick }) {
                 <Tooltip title="Coffee Quality" arrow><CoffeeIcon sx={{ color: colors.text.secondary }} /></Tooltip>
                 <span>{cofficeRatings.averageRatings.coffee?.toFixed(1)}</span>
               </Box>
-              <Typography variant="caption" sx={{ color: colors.text.disabled, ml: 2 }}>
-                ({cofficeRatings.totalRatings} {cofficeRatings.totalRatings === 1 ? 'rating' : 'ratings'})
-              </Typography>
+              {/* Rate this Coffice Button */}
+              {user && !cofficeReviews.some(review => review.userId === user.uid) && (
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    analyticsService.trackRateButtonClicked(placeId, place?.name);
+                    setShowRatingForm(true);
+                  }}
+                  sx={{ 
+                    backgroundColor: colors.primary.main,
+                    color: colors.background.paper,
+                    ml: 2,
+                    '&:hover': {
+                      backgroundColor: colors.primary.dark
+                    }
+                  }}
+                >
+                  Rate this Coffice
+                </Button>
+              )}
+              {!user && (
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    analyticsService.trackRateButtonClicked(placeId, place?.name);
+                    setShowAuthModal(true);
+                  }}
+                  sx={{ 
+                    backgroundColor: colors.primary.main,
+                    color: colors.background.paper,
+                    ml: 2,
+                    '&:hover': {
+                      backgroundColor: colors.primary.dark
+                    }
+                  }}
+                >
+                  Rate this Coffice
+                </Button>
+              )}
+            </Box>
+          )}
+
+          {/* Rating Form */}
+          {showRatingForm && (
+            <Box sx={{ mt: 3, pt: 3, borderTop: `1px solid ${colors.border}` }}>
+              <RatingForm 
+                placeId={placeId}
+                place={place}
+                user={user}
+                onSubmit={handleRatingSubmit}
+                onCancel={() => setShowRatingForm(false)}
+              />
             </Box>
           )}
         </CardContent>
@@ -457,8 +520,8 @@ function CofficePage({ user, onSignInClick }) {
           <Typography variant="caption" sx={{ color: colors.primary.main }}>{shareMsg}</Typography>
         </Box>
       )}
-      {/* Reviews Section (only for logged in users) */}
-      {user && (
+      {/* Reviews Section */}
+      {cofficeReviews && (
         <Card sx={{ width: '100%', maxWidth: 600, boxShadow: 2, borderRadius: 3, mb: 4, mx: 'auto' }}>
           <CardContent>
             <Typography variant="h6" sx={{ mb: 2 }}>Reviews</Typography>
@@ -526,6 +589,9 @@ function CofficePage({ user, onSignInClick }) {
           </CardContent>
         </Card>
       )}
+
+
+
       {/* Add some bottom padding for scrollability */}
       <Box sx={{ height: 32 }} />
       
@@ -568,6 +634,7 @@ function CofficePage({ user, onSignInClick }) {
         </Box>
       </Modal>
     </Box>
+    </>
   );
 }
 

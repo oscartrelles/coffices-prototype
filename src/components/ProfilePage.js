@@ -529,12 +529,12 @@ function ProfilePage({ user, onSignInClick }) {
 
   // Get achievement badge based on rated coffices count
   const getAchievementBadge = (count) => {
-    if (count >= 100) return { label: 'Executive Espresso Cofficer', color: '#FFD700', icon: '🥇' };
-    if (count >= 50) return { label: 'Global Grind Cofficer', color: '#C0C0C0', icon: '🌐' };
-    if (count >= 20) return { label: 'Regional Remote Cofficer', color: '#CD7F32', icon: '🌍' };
-    if (count >= 10) return { label: 'Senior Cofficer, Sips', color: '#4CAF50', icon: '🥤' };
-    if (count >= 5) return { label: 'Associate Cofficer', color: '#2196F3', icon: ' 💻' };
-    return { label: 'Junior Cofficer', color: '#9E9E9E', icon: '☕️' };
+    if (count >= 100) return { label: 'Executive Espresso Cofficer', color: '#FFD700', icon: '' };
+    if (count >= 50) return { label: 'Global Grind Cofficer', color: '#C0C0C0', icon: '' };
+    if (count >= 20) return { label: 'Regional Remote Cofficer', color: '#CD7F32', icon: '' };
+    if (count >= 10) return { label: 'Senior Cofficer, Sips', color: '#4CAF50', icon: '' };
+    if (count >= 5) return { label: 'Associate Cofficer', color: '#2196F3', icon: '' };
+    return { label: 'Junior Cofficer', color: '#9E9E9E', icon: '' };
   };
 
   const achievement = getAchievementBadge(ratedCofficesCount);
