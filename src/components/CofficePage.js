@@ -455,24 +455,26 @@ function CofficePage({ user, onSignInClick }) {
             {place?.vicinity}
           </Typography>
           {cofficeRatings && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mb: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Tooltip title="WiFi" arrow><WifiIcon sx={{ color: colors.text.secondary }} /></Tooltip>
-                <span>{cofficeRatings.averageRatings.wifi?.toFixed(1)}</span>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Tooltip title="WiFi" arrow><WifiIcon sx={{ color: colors.text.secondary }} /></Tooltip>
+                  <span>{cofficeRatings.averageRatings.wifi?.toFixed(1)}</span>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Tooltip title="Power Outlets" arrow><PowerIcon sx={{ color: colors.text.secondary }} /></Tooltip>
+                  <span>{cofficeRatings.averageRatings.power?.toFixed(1)}</span>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Tooltip title="Noise Level" arrow><VolumeUpIcon sx={{ color: colors.text.secondary }} /></Tooltip>
+                  <span>{cofficeRatings.averageRatings.noise?.toFixed(1)}</span>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Tooltip title="Coffee Quality" arrow><CoffeeIcon sx={{ color: colors.text.secondary }} /></Tooltip>
+                  <span>{cofficeRatings.averageRatings.coffee?.toFixed(1)}</span>
+                </Box>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Tooltip title="Power Outlets" arrow><PowerIcon sx={{ color: colors.text.secondary }} /></Tooltip>
-                <span>{cofficeRatings.averageRatings.power?.toFixed(1)}</span>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Tooltip title="Noise Level" arrow><VolumeUpIcon sx={{ color: colors.text.secondary }} /></Tooltip>
-                <span>{cofficeRatings.averageRatings.noise?.toFixed(1)}</span>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <Tooltip title="Coffee Quality" arrow><CoffeeIcon sx={{ color: colors.text.secondary }} /></Tooltip>
-                <span>{cofficeRatings.averageRatings.coffee?.toFixed(1)}</span>
-              </Box>
-              {/* Rate this Coffice Button */}
+              {/* Rate this Coffice Button - Aligned to Right */}
               {user && !cofficeReviews.some(review => review.userId === user.uid) && (
                 <Button
                   variant="contained"
@@ -483,7 +485,6 @@ function CofficePage({ user, onSignInClick }) {
                   sx={{ 
                     backgroundColor: colors.primary.main,
                     color: colors.background.paper,
-                    ml: 2,
                     '&:hover': {
                       backgroundColor: colors.primary.dark
                     }
@@ -507,7 +508,6 @@ function CofficePage({ user, onSignInClick }) {
                   sx={{ 
                     backgroundColor: colors.primary.main,
                     color: colors.background.paper,
-                    ml: 2,
                     '&:hover': {
                       backgroundColor: colors.primary.dark
                     }
