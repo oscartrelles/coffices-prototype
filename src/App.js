@@ -1,8 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
-import { BrowserRouter as Router, Route, Routes, BrowserRouter, useNavigate, useParams } from 'react-router-dom';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useEffect, useState, useCallback, Suspense, lazy } from 'react';
+import { BrowserRouter, Route, Routes, useParams } from 'react-router-dom';
+import { auth, db, logAnalyticsEvent } from './firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db, handleRedirectResult, logAnalyticsEvent } from './firebaseConfig';
 import analyticsService from './services/analyticsService';
 import { HelmetProvider } from 'react-helmet-async';
 import getApiKeys from './config/apiKeys';
@@ -15,16 +14,18 @@ import Footer from './components/Footer';
 import Box from '@mui/material/Box';
 import SearchBar from './components/SearchBar';
 import Map from './components/Map';
-import PlaceDetails from './components/PlaceDetails';
 import LoadingSpinner from './components/common/LoadingSpinner';
-import AdminDashboard from './components/admin/AdminDashboard';
 import AdminRoute from './components/auth/AdminRoute';
 import CofficePage from './components/CofficePage';
-import ProfilePage from './components/ProfilePage';
+
+// Lazy load profile page for code splitting
+const ProfilePage = lazy(() => import('./components/ProfilePage'));
+
+// Lazy load admin components for code splitting
+const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
 
 function App() {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
@@ -80,23 +81,54 @@ function App() {
       return;
     }
 
-    const script = document.createElement('script');
-    const { mapsApiKey } = getApiKeys();
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places&callback=initMap`;
-    script.async = true;
-    script.defer = true;
-
-    // Define the callback function
-    window.initMap = () => {
-      setIsMapLoaded(true);
+    const loadGoogleMaps = async () => {
+      try {
+        const { mapsApiKey } = getApiKeys();
+        
+        // Use async loading with proper error handling
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places&loading=async`;
+          script.async = true;
+          script.defer = true;
+          
+          script.onload = resolve;
+          script.onerror = reject;
+          
+          document.head.appendChild(script);
+        });
+        
+        // Wait for Google Maps to be fully loaded
+        await new Promise((resolve) => {
+          const checkGoogleMaps = () => {
+            if (window.google && window.google.maps) {
+              resolve();
+            } else {
+              setTimeout(checkGoogleMaps, 100);
+            }
+          };
+          checkGoogleMaps();
+        });
+        
+        setIsMapLoaded(true);
+      } catch (error) {
+        console.error('Failed to load Google Maps:', error);
+        // Fallback: try traditional callback method
+        const script = document.createElement('script');
+        const { mapsApiKey } = getApiKeys();
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places&callback=initMap`;
+        script.async = true;
+        script.defer = true;
+        
+        window.initMap = () => {
+          setIsMapLoaded(true);
+        };
+        
+        document.head.appendChild(script);
+      }
     };
 
-    document.head.appendChild(script);
-
-    return () => {
-      document.head.removeChild(script);
-      delete window.initMap;
-    };
+    loadGoogleMaps();
   }, []);
 
   useEffect(() => {
@@ -181,9 +213,7 @@ function App() {
     handleModalClose();
   };
 
-  const handleSignOut = () => {
-    logAnalyticsEvent('user_signed_out');
-  };
+
 
   // Check if user has a profile and redirect if they don't
   const checkUserProfile = useCallback(async (currentUser) => {
@@ -330,7 +360,13 @@ function MainRouter() {
           <Routes>
             <Route path="/coffice/:placeId" element={<CofficePageWrapper />} />
             <Route path="/profile/:userId?" element={<ProfilePageWrapper />} />
-            <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+            <Route path="/admin" element={
+              <AdminRoute>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <AdminDashboard />
+                </Suspense>
+              </AdminRoute>
+            } />
             <Route path="/*" element={<App />} />
           </Routes>
         </BrowserRouter>
@@ -370,7 +406,11 @@ function CofficePageWrapper() {
     return <LoadingSpinner />;
   }
 
-  return <CofficePage user={user} onSignInClick={handleSignInClick} />;
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <CofficePage user={user} onSignInClick={handleSignInClick} />
+    </Suspense>
+  );
 }
 
 function ProfilePageWrapper() {
@@ -418,7 +458,11 @@ function ProfilePageWrapper() {
     return <LoadingSpinner />;
   }
 
-  return <ProfilePage user={user} onSignInClick={handleSignInClick} />;
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <ProfilePage user={user} onSignInClick={handleSignInClick} />
+    </Suspense>
+  );
 }
 
 export default MainRouter;

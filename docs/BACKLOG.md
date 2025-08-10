@@ -6,6 +6,7 @@
 **Status**: Backlogged  
 **Priority**: High  
 **Effort**: Medium-High  
+**Last Attempt**: January 2025 - Reverted due to breaking deeplinks
 
 **Problem**: Social media crawlers (Facebook, Twitter, LinkedIn, WhatsApp) don't execute JavaScript, so they show generic app information instead of venue-specific details when sharing coffice deeplinks.
 
@@ -13,7 +14,14 @@
 - ✅ Browser sharing works perfectly
 - ✅ Search engine indexing works
 - ✅ User experience is good
+- ✅ Deeplinks work correctly (restored)
 - ❌ Social media previews show generic app info
+
+**Recent Attempt (January 2025)**:
+- Implemented Cloud Function with crawler detection
+- Broke deeplinks for normal users
+- Reverted to preserve core functionality
+- **Decision**: Backlog social sharing until proper solution found
 
 **Proposed Solutions**:
 1. **Next.js Migration** (Recommended)
@@ -36,7 +44,8 @@
 - [ ] Twitter cards display venue information
 - [ ] LinkedIn sharing shows correct preview
 - [ ] WhatsApp sharing shows venue details
-- [ ] All existing functionality remains intact
+- [ ] **CRITICAL**: All existing functionality remains intact (deeplinks must work)
+- [ ] No interference with normal user experience
 
 ---
 

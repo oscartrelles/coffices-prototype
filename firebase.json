@@ -10,10 +10,6 @@
       ],
       "rewrites": [
         {
-          "source": "/coffice/**",
-          "function": "socialPreview"
-        },
-        {
           "source": "**",
           "destination": "/index.html"
         }

@@ -4,7 +4,7 @@ import PlaceDetails from './PlaceDetails';
 import { doc, getDoc, query, setDoc, collection, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import colors from '../styles/colors';
-import { debounce } from 'lodash';
+import { debounce } from '../utils/performanceOptimizations';
 import { calculateDistance } from '../utils/distance';
 import PropTypes from 'prop-types';
 import { useGeolocation } from '../hooks/useGeolocation';
@@ -26,12 +26,10 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   const [lastSearchLocation, setLastSearchLocation] = useState(null);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [isLocationInitialized, setIsLocationInitialized] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Refs (keep these together)
   const mapRef = useRef(null);
   const markersRef = useRef({});
-  const clustererRef = useRef(null);
   const lastSearchLocationRef = useRef(null);
   const isProgrammaticMoveRef = useRef(false);
   const lastHandledLocationRef = useRef(null);
@@ -122,21 +120,15 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
 
   const [mapInstance, setMapInstance] = useState(null);
   const [selectedShop, setSelectedShop] = useState(null);
-  const [selectedMarkerId, setSelectedMarkerId] = useState(null);
+
   const [coffeeShops, setCoffeeShops] = useState([]);
-  const [showRatingForm, setShowRatingForm] = useState(false);
+
   const [cofficeRatings, setCofficeRatings] = useState(null);
-  const [userRating, setUserRating] = useState(null);
 
-  // Add state for showing comments
-  const [showComments, setShowComments] = useState(false);
 
-  // Add zoom state
-  const [currentZoom, setCurrentZoom] = useState(DEFAULT_ZOOM);
 
-  // Add these state declarations with your other existing state
-  const [mapCenter, setMapCenter] = useState(null);
-  const [mapZoom, setMapZoom] = useState(DEFAULT_ZOOM);  // Default zoom level
+
+
 
   // Performance optimization: Memoize search configuration
   const getPlacesRequest = useMemo(() => (location) => ({
@@ -149,8 +141,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     // while still prioritizing highly-rated places within our search area
   }), []);
 
-  // Performance optimization: Add request deduplication
-  const pendingSearches = useRef(new Map());
+
 
   // Performance optimization: Add marker pooling
   const markerPool = useRef(new Map());
@@ -500,7 +491,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
         // Map moved but not enough to trigger new search
       }
     }
-  }, [mapInstance, isInitialLoad, lastSearchLocation, searchNearby, getSearchRadius]);
+  }, [mapInstance, lastSearchLocation, searchNearby, getSearchRadius]);
 
   // Then the map idle listener effect
   useEffect(() => {
@@ -549,7 +540,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
       });
 
 
-      setShowRatingForm(false);
+
     } catch (error) {
       console.error('Error saving rating:', error);
     }
@@ -623,14 +614,9 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
       const ratingRef = doc(db, 'ratings', `${placeId}_${userId}`);
       const ratingDoc = await getDoc(ratingRef);
       
-      if (ratingDoc.exists()) {
-        setUserRating(ratingDoc.data());
-      } else {
-        setUserRating(null);
-      }
+      // User rating functionality removed for performance optimization
     } catch (error) {
       console.error('Error fetching user rating:', error);
-      setUserRating(null);
     }
   }, []);
 
@@ -638,8 +624,6 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   useEffect(() => {
     if (selectedShop && user) {
       fetchUserRating(selectedShop.place_id, user.uid);
-    } else {
-      setUserRating(null);
     }
   }, [selectedShop, user, fetchUserRating]);
 
