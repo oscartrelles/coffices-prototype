@@ -75,6 +75,8 @@ function App() {
     initializeApp();
   }, []);
 
+
+
   useEffect(() => {
     if (window.google) {
       setIsMapLoaded(true);
@@ -85,46 +87,19 @@ function App() {
       try {
         const { mapsApiKey } = getApiKeys();
         
-        // Use async loading with proper error handling
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places&loading=async`;
-          script.async = true;
-          script.defer = true;
-          
-          script.onload = resolve;
-          script.onerror = reject;
-          
-          document.head.appendChild(script);
-        });
-        
-        // Wait for Google Maps to be fully loaded
-        await new Promise((resolve) => {
-          const checkGoogleMaps = () => {
-            if (window.google && window.google.maps) {
-              resolve();
-            } else {
-              setTimeout(checkGoogleMaps, 100);
-            }
-          };
-          checkGoogleMaps();
-        });
-        
-        setIsMapLoaded(true);
-      } catch (error) {
-        console.error('Failed to load Google Maps:', error);
-        // Fallback: try traditional callback method
+        // Simple, reliable loading - what was working before
         const script = document.createElement('script');
-        const { mapsApiKey } = getApiKeys();
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places&callback=initMap`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${mapsApiKey}&libraries=places`;
         script.async = true;
         script.defer = true;
         
-        window.initMap = () => {
+        script.onload = () => {
           setIsMapLoaded(true);
         };
         
         document.head.appendChild(script);
+      } catch (error) {
+        console.error('Failed to load Google Maps:', error);
       }
     };
 

@@ -2,11 +2,20 @@
 
 // Debounce function for expensive operations
 export const debounce = (func, wait) => {
+  if (typeof func !== 'function') {
+    console.error('debounce: First argument must be a function', func);
+    return func; // Return as-is if not a function
+  }
+  
   let timeout;
   const executedFunction = function(...args) {
     const later = () => {
       clearTimeout(timeout);
-      func(...args);
+      try {
+        func.apply(this, args);
+      } catch (error) {
+        console.error('Error in debounced function:', error);
+      }
     };
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
@@ -14,8 +23,37 @@ export const debounce = (func, wait) => {
   
   // Add cancel method for compatibility with lodash
   executedFunction.cancel = () => {
-    clearTimeout(timeout);
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
   };
+  
+  // Add flush method for immediate execution
+  executedFunction.flush = () => {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+      try {
+        func();
+      } catch (error) {
+        console.error('Error in flushed function:', error);
+      }
+    }
+  };
+  
+  // Ensure the function has the expected methods
+  Object.defineProperty(executedFunction, 'cancel', {
+    value: executedFunction.cancel,
+    writable: false,
+    configurable: false
+  });
+  
+  Object.defineProperty(executedFunction, 'flush', {
+    value: executedFunction.flush,
+    writable: false,
+    configurable: false
+  });
   
   return executedFunction;
 };

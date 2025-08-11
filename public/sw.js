@@ -1,14 +1,13 @@
 // Service Worker for Coffices App
-const CACHE_NAME = 'coffices-v1';
-const STATIC_CACHE = 'coffices-static-v1';
-const DYNAMIC_CACHE = 'coffices-dynamic-v1';
+const CACHE_VERSION = 'v2'; // Increment version to force cache refresh
+const CACHE_NAME = `coffices-${CACHE_VERSION}`;
+const STATIC_CACHE = `coffices-static-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `coffices-dynamic-${CACHE_VERSION}`;
 
-// Assets to cache immediately
+// Assets to cache immediately (excluding JS/CSS that change with each build)
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/static/js/main.ee278dea.js',
-  '/static/css/main.7ff33ee3.css',
   '/favicon.ico',
   '/logo192.png',
   '/logo512.png',
@@ -17,6 +16,10 @@ const STATIC_ASSETS = [
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
+  console.log('New service worker installing, forcing page reload');
+  // Force the page to reload to get fresh content
+  self.skipWaiting();
+  
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => {
@@ -32,17 +35,29 @@ self.addEventListener('install', (event) => {
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys()
-      .then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
-              console.log('Deleting old cache:', cacheName);
-              return caches.delete(cacheName);
-            }
-          })
-        );
+    Promise.all([
+      // Clean up old caches
+      caches.keys()
+        .then((cacheNames) => {
+          return Promise.all(
+            cacheNames.map((cacheName) => {
+              // Delete all old caches to force fresh content
+              if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
+                console.log('Deleting old cache:', cacheName);
+                return caches.delete(cacheName);
+              }
+            })
+          );
+        }),
+      // Force clients to reload to get fresh content
+      self.clients.claim(),
+      // Send message to all clients to reload
+      self.clients.matchAll().then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: 'RELOAD_PAGE' });
+        });
       })
+    ])
   );
 });
 
@@ -67,6 +82,30 @@ self.addEventListener('fetch', (event) => {
   if (request.destination === 'script' || 
       request.destination === 'style' || 
       request.destination === 'image') {
+    // For JavaScript and CSS files, always fetch fresh content first
+    if (request.destination === 'script' || request.destination === 'style') {
+      event.respondWith(
+        fetch(request)
+          .then((fetchResponse) => {
+            // Cache successful responses for future use
+            if (fetchResponse && fetchResponse.status === 200) {
+              const responseClone = fetchResponse.clone();
+              caches.open(DYNAMIC_CACHE)
+                .then((cache) => {
+                  cache.put(request, responseClone);
+                });
+            }
+            return fetchResponse;
+          })
+          .catch(() => {
+            // Fallback to cache if fetch fails
+            return caches.match(request);
+          })
+      );
+      return;
+    }
+    
+    // For images, use cache-first strategy
     event.respondWith(
       caches.match(request)
         .then((response) => {
@@ -140,8 +179,36 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('sync', (event) => {
   if (event.tag === 'background-sync') {
     event.waitUntil(
-      // Handle background sync tasks
+      // Perform background sync tasks
       console.log('Background sync triggered')
+    );
+  }
+});
+
+// Push notifications
+self.addEventListener('push', (event) => {
+  if (event.data) {
+    const data = event.data.json();
+    const options = {
+      body: data.body,
+      icon: '/logo192.png',
+      badge: '/logo192.png',
+      data: data
+    };
+
+    event.waitUntil(
+      self.registration.showNotification(data.title, options)
+    );
+  }
+});
+
+// Notification click
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  
+  if (event.notification.data && event.notification.data.url) {
+    event.waitUntil(
+      clients.openWindow(event.notification.data.url)
     );
   }
 });

@@ -35,42 +35,49 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   const lastHandledLocationRef = useRef(null);
 
   // Performance optimization: Memoize marker styles to prevent recreation
-  const markerStyles = useMemo(() => ({
-    default: {
-      path: window.google?.maps?.SymbolPath?.CIRCLE || 0,
-      fillColor: colors.primary.main,
-      fillOpacity: 0.9,
-      scale: 8,
-      strokeColor: colors.background.paper,
-      strokeWeight: 2,
-    },
-    selected: {
-      path: window.google?.maps?.SymbolPath?.CIRCLE || 0,
-      fillColor: colors.primary.dark,
-      fillOpacity: 1,
-      scale: 12,
-      strokeColor: colors.background.paper,
-      strokeWeight: 3,
-    },
-    rated: {
-      path: 'M 10,1.2 12.5,6.9 18,7.3 14,11.2 15,16.2 10,13.9 5,16.2 6,11.2 2,7.3 7.5,6.9 z', 
-      fillColor: colors.primary.main,
-      fillOpacity: 0.9,
-      scale: 1.5,
-      strokeColor: colors.background.paper,
-      strokeWeight: 1,
-      anchor: new window.google.maps.Point(10, 10)
-    },
-    ratedSelected: {
-      path: 'M 10,1.2 12.5,6.9 18,7.3 14,11.2 15,16.2 10,13.9 5,16.2 6,11.2 2,7.3 7.5,6.9 z',
-      fillColor: colors.primary.dark,
-      fillOpacity: 1,
-      scale: 2,
-      strokeColor: colors.background.paper,
-      strokeWeight: 1.5,
-      anchor: new window.google.maps.Point(10, 10)
+  const markerStyles = useMemo(() => {
+    // Only create marker styles if Google Maps is available
+    if (!window.google?.maps?.Point) {
+      return null;
     }
-  }), []);
+    
+    return {
+      default: {
+        path: window.google?.maps?.SymbolPath?.CIRCLE || 0,
+        fillColor: colors.primary.main,
+        fillOpacity: 0.9,
+        scale: 8,
+        strokeColor: colors.background.paper,
+        strokeWeight: 2,
+      },
+      selected: {
+        path: window.google?.maps?.SymbolPath?.CIRCLE || 0,
+        fillColor: colors.primary.dark,
+        fillOpacity: 1,
+        scale: 12,
+        strokeColor: colors.background.paper,
+        strokeWeight: 3,
+      },
+      rated: {
+        path: 'M 10,1.2 12.5,6.9 18,7.3 14,11.2 15,16.2 10,13.9 5,16.2 6,11.2 2,7.3 7.5,6.9 z', 
+        fillColor: colors.primary.main,
+        fillOpacity: 0.9,
+        scale: 1.5,
+        strokeColor: colors.background.paper,
+        strokeWeight: 1,
+        anchor: new window.google.maps.Point(10, 10)
+      },
+      ratedSelected: {
+        path: 'M 10,1.2 12.5,6.9 18,7.3 14,11.2 15,16.2 10,13.9 5,16.2 6,11.2 2,7.3 7.5,6.9 z',
+        fillColor: colors.primary.dark,
+        fillOpacity: 1,
+        scale: 2,
+        strokeColor: colors.background.paper,
+        strokeWeight: 1.5,
+        anchor: new window.google.maps.Point(10, 10)
+      }
+    };
+  }, []);
 
   // Performance optimization: Memoize map styles
   const mapStyles = useMemo(() => [
@@ -148,6 +155,12 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
 
   // Performance optimization: Memoize marker creation function
   const createOrUpdateMarker = useCallback((place, isSelected) => {
+    // Safety check: only proceed if markerStyles are available
+    if (!markerStyles) {
+      console.warn('Marker styles not available yet, skipping marker creation');
+      return null;
+    }
+    
     const existingMarker = markerPool.current.get(place.place_id);
     
     if (existingMarker) {
@@ -161,6 +174,12 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
       return existingMarker;
     }
     
+    // Safety check: ensure Google Maps API is fully loaded
+    if (!window.google?.maps?.Marker) {
+      console.warn('Google Maps API not fully loaded yet, skipping marker creation');
+      return;
+    }
+
     // Create new marker only if needed
     const newMarker = new window.google.maps.Marker({
       position: place.geometry.location,
@@ -178,6 +197,12 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
 
   // Performance optimization: Memoize marker click handler
   const handleMarkerClick = useCallback((marker, shop) => {
+    // Safety check: only proceed if markerStyles are available
+    if (!markerStyles) {
+      console.warn('Marker styles not available yet, skipping marker click handling');
+      return;
+    }
+    
     // Track marker click for analytics
     analyticsService.trackMapMarkerClicked(
       shop.place_id,
@@ -215,8 +240,8 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
 
   // Performance optimization: Optimize marker updates with pooling
   const updateMarkers = useCallback(async () => {
-    if (!mapInstance || !coffeeShops.length) {
-  
+    if (!mapInstance || !coffeeShops.length || !markerStyles) {
+      console.warn('Cannot update markers: missing mapInstance, coffeeShops, or markerStyles');
       return;
     }
 
@@ -264,7 +289,7 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
       
       // Check if this place has ratings (from our database or batch check)
       const hasRatings = place.hasRatings || ratedPlaceIds.has(place.place_id);
-      if (hasRatings) {
+      if (hasRatings && markerStyles) {
         marker.hasRatings = true;
         marker.setIcon(isSelected ? markerStyles.ratedSelected : markerStyles.rated);
       }
@@ -435,11 +460,16 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   // Then define debouncedSearch
   const debouncedSearch = useCallback(
     debounce((location) => {
-  
       searchNearby(location);
     }, 1000),
     [searchNearby]
   );
+
+  // Store the debounced function in a ref to ensure it's stable across renders
+  const debouncedSearchRef = useRef(debouncedSearch);
+  debouncedSearchRef.current = debouncedSearch;
+
+
 
   // Update effect to watch coffeeShops
   useEffect(() => {
@@ -498,17 +528,29 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     if (!mapInstance) return;
 
 
+    if (!window.google?.maps?.event) {
+      console.warn('Google Maps API not fully loaded yet, skipping idle listener');
+      return;
+    }
+
     const idleListener = mapInstance.addListener('idle', handleMapIdle);
 
     // Clean up function
     return () => {
-  
       if (idleListener) {
         window.google.maps.event.removeListener(idleListener);
       }
-      debouncedSearch.cancel();
+      // Use the ref to ensure we're calling cancel on the current debounced function
+      if (debouncedSearchRef.current && typeof debouncedSearchRef.current.cancel === 'function') {
+        debouncedSearchRef.current.cancel();
+      }
+      
+      // Safety check: ensure Google Maps API is fully loaded before removing listener
+      if (window.google?.maps?.event && idleListener) {
+        window.google.maps.event.removeListener(idleListener);
+      }
     };
-  }, [mapInstance, handleMapIdle, debouncedSearch]);
+  }, [mapInstance, handleMapIdle]);
 
   // 3. Then declare handleLocationSelect
   const handleLocationSelect = useCallback((location, mapInstance) => {
@@ -518,6 +560,11 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     
     // Only perform search if this is from a search action
     if (location.fromSearch) {
+      if (!window.google?.maps?.LatLng) {
+        console.warn('Google Maps API not fully loaded yet, skipping location update');
+        return;
+      }
+
       const newCenter = new window.google.maps.LatLng(location.lat, location.lng);
       mapInstance?.panTo(newCenter);
       searchNearby(location);
@@ -631,6 +678,11 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   useEffect(() => {
     if (!mapRef.current || mapInstance) return;
 
+    // Simple check - what was working before
+    if (!window.google?.maps?.Map) {
+      return;
+    }
+
     const map = new window.google.maps.Map(mapRef.current, {
       center: DEFAULT_LOCATION,
       zoom: DEFAULT_ZOOM,
@@ -677,6 +729,11 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     // Set flag BEFORE the programmatic move
     isProgrammaticMoveRef.current = true;
     
+    if (!window.google?.maps?.LatLng) {
+      console.warn('Google Maps API not fully loaded yet, skipping location update');
+      return;
+    }
+
     const newCenter = new window.google.maps.LatLng(
       selectedLocation.lat,
       selectedLocation.lng
@@ -733,6 +790,10 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   
       
       if (!isLocationInitialized && !selectedLocation) {
+        if (!window.google?.maps?.LatLng) {
+          console.warn('Google Maps API not fully loaded yet, skipping location update');
+          return;
+        }
     
         isProgrammaticMoveRef.current = true;
         mapInstance.panTo(location);
@@ -801,6 +862,12 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
   useEffect(() => {
     if (!mapInstance || !currentLocation) return;
 
+    // Safety check: ensure Google Maps API is fully loaded
+    if (!window.google?.maps?.Marker || !window.google?.maps?.SymbolPath) {
+      console.warn('Google Maps API not fully loaded yet, skipping user location marker creation');
+      return;
+    }
+
     // Create the marker for the user's location
     const marker = new window.google.maps.Marker({
       position: currentLocation,
@@ -819,6 +886,12 @@ function MapComponent({ user, onSignInClick, selectedLocation, onMapInstance, on
     // Set the ripple effect when the user's location is updated
     if (ripple) {
       ripple.setMap(null); // Remove the previous ripple
+    }
+
+    // Safety check: ensure Google Maps API is fully loaded
+    if (!window.google?.maps?.Circle) {
+      console.warn('Google Maps API not fully loaded yet, skipping ripple effect creation');
+      return;
     }
 
     // Create a new ripple effect

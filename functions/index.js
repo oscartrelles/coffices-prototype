@@ -154,3 +154,6 @@ exports.batchGetPlaceDetails = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('internal', error.message);
   }
 }); 
+
+// Export the dynamic meta tags function
+exports.dynamicMetaTags = require('./socialMetaTags').dynamicMetaTags; 

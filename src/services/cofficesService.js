@@ -2,7 +2,6 @@
 // This service handles creating and updating coffice documents with location data and aggregated ratings
 
 import { doc, setDoc, getDoc, updateDoc, collection, getDocs, writeBatch, deleteField } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../firebaseConfig';
 
 class CofficesService {
@@ -493,85 +492,15 @@ class CofficesService {
   }
 
   // Download and store image in Firebase Storage via Firebase Function
+  // NOTE: This function is deprecated - Firebase Function no longer exists
   async downloadAndStoreImage(photoReference, placeId, maxWidth = 400, maxHeight = 300) {
-    try {
-      if (!photoReference) {
-        console.log('⚠️ No photo reference provided');
-        return null;
-      }
-      
-      console.log('🖼️ Starting downloadAndStoreImage for placeId:', placeId);
-      console.log('📸 Parameters:', { photoReference, placeId, maxWidth, maxHeight });
-      
-      const functions = getFunctions();
-      const downloadAndStoreImage = httpsCallable(functions, 'downloadAndStoreImage');
-      
-      console.log('📞 Calling Firebase Function downloadAndStoreImage...');
-      
-      const result = await downloadAndStoreImage({
-        photoReference,
-        placeId,
-        maxWidth,
-        maxHeight
-      });
-      
-      console.log('📥 Firebase Function response received:', result);
-      console.log('📊 Response data:', result.data);
-      
-      const { imageUrl } = result.data;
-      console.log('✅ Image stored in Firebase Storage:', imageUrl);
-      
-      return imageUrl;
-      
-    } catch (error) {
-      console.error('❌ Error in downloadAndStoreImage:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        code: error.code,
-        details: error.details
-      });
-      return null;
-    }
+    return null;
   }
 
   // Download and store image from a direct URL in Firebase Storage
+  // NOTE: This function is deprecated - Firebase Function no longer exists
   async downloadAndStoreImageFromUrl(imageUrl, placeId) {
-    try {
-      if (!imageUrl) {
-        console.log('⚠️ No image URL provided for direct download');
-        return null;
-      }
-
-      console.log('🖼️ Starting downloadAndStoreImageFromUrl for placeId:', placeId);
-      console.log('📸 Image URL:', imageUrl);
-
-      const functions = getFunctions();
-      const downloadAndStoreImage = httpsCallable(functions, 'downloadAndStoreImageFromUrl');
-
-      console.log('📞 Calling Firebase Function downloadAndStoreImageFromUrl...');
-
-      const result = await downloadAndStoreImage({
-        imageUrl,
-        placeId
-      });
-
-      console.log('📥 Firebase Function response received:', result);
-      console.log('📊 Response data:', result.data);
-
-      const { imageUrl: storedImageUrl } = result.data;
-      console.log('✅ Image stored in Firebase Storage from URL:', storedImageUrl);
-
-      return storedImageUrl;
-
-    } catch (error) {
-      console.error('❌ Error in downloadAndStoreImageFromUrl:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        code: error.code,
-        details: error.details
-      });
-      return null;
-    }
+    return null;
   }
 
   // Generate photo URL from photo reference (legacy method)

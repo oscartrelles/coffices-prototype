@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
+import { isCrawler, getCrawlerType } from '../utils/crawlerDetection';
 
 const SEO = ({ 
   title = 'Coffices - Find the Best Coffee Shops for Remote Work',
@@ -115,6 +116,8 @@ const SEO = ({
   };
 
   const structuredData = getStructuredData();
+  const isCrawlerRequest = isCrawler();
+  const crawlerType = getCrawlerType();
 
   return (
     <Helmet>
@@ -123,7 +126,7 @@ const SEO = ({
       <meta name="description" content={description} />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       
-      {/* Open Graph / Facebook */}
+      {/* Enhanced Open Graph / Facebook - especially for crawlers */}
       <meta property="og:type" content={type} />
       <meta property="og:url" content={fullUrl} />
       <meta property="og:title" content={title} />
@@ -134,7 +137,7 @@ const SEO = ({
       <meta property="og:site_name" content="Coffices" />
       <meta property="og:locale" content="en_US" />
       
-      {/* Place-specific Open Graph tags */}
+      {/* Enhanced place-specific Open Graph tags for crawlers */}
       {place && (
         <>
           <meta property="og:latitude" content={typeof place.geometry?.location?.lat === 'function' ? place.geometry.location.lat() : place.geometry?.location?.lat} />
@@ -143,10 +146,21 @@ const SEO = ({
           <meta property="og:locality" content={place.vicinity || ""} />
           <meta property="og:region" content="US" />
           <meta property="og:country-name" content="United States" />
+          
+          {/* Additional Open Graph tags for better social media previews */}
+          {isCrawlerRequest && (
+            <>
+              <meta property="og:price:amount" content="0" />
+              <meta property="og:price:currency" content="USD" />
+              <meta property="og:availability" content="in stock" />
+              <meta property="og:category" content="Coffee Shop" />
+              <meta property="og:brand" content="Coffices" />
+            </>
+          )}
         </>
       )}
 
-      {/* Twitter */}
+      {/* Enhanced Twitter - especially for crawlers */}
       <meta property="twitter:card" content="summary_large_image" />
       <meta property="twitter:url" content={fullUrl} />
       <meta property="twitter:title" content={title} />
@@ -154,6 +168,16 @@ const SEO = ({
       <meta property="twitter:image" content={fullImageUrl} />
       <meta property="twitter:site" content="@coffices" />
       <meta property="twitter:creator" content="@coffices" />
+      
+      {/* Additional Twitter tags for better social media previews */}
+      {isCrawlerRequest && place && (
+        <>
+          <meta property="twitter:label1" content="Location" />
+          <meta property="twitter:data1" content={place.vicinity || place.formatted_address || ""} />
+          <meta property="twitter:label2" content="Rating" />
+          <meta property="twitter:data2" content={place.rating ? `${place.rating}/5` : "Not rated"} />
+        </>
+      )}
 
       {/* Additional Meta Tags */}
       <meta name="robots" content="index, follow" />
@@ -170,12 +194,67 @@ const SEO = ({
       <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       <meta name="apple-mobile-web-app-title" content="Coffices" />
 
-      {/* Structured Data */}
+      {/* Enhanced Structured Data - especially for crawlers */}
       {structuredData.map((data, index) => (
         <script key={index} type="application/ld+json">
           {JSON.stringify(data)}
         </script>
       ))}
+      
+      {/* Additional structured data for crawlers */}
+      {isCrawlerRequest && place && (
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "LocalBusiness",
+            "name": place.name,
+            "description": `Remote work coffee shop: ${place.name}. Perfect for remote workers with great WiFi, power outlets, and coffee quality.`,
+            "url": fullUrl,
+            "image": place.mainImageUrl || fullImageUrl,
+            "address": {
+              "@type": "PostalAddress",
+              "streetAddress": place.formatted_address || place.vicinity || "",
+              "addressLocality": place.vicinity || "",
+              "addressCountry": "US"
+            },
+            "geo": {
+              "@type": "GeoCoordinates",
+              "latitude": typeof place.geometry?.location?.lat === 'function' ? place.geometry.location.lat() : place.geometry?.location?.lat,
+              "longitude": typeof place.geometry?.location?.lng === 'function' ? place.geometry.location.lng() : place.geometry?.location?.lng
+            },
+            "telephone": place.formatted_phone_number || "",
+            "openingHours": place.opening_hours?.weekday_text || [],
+            "priceRange": place.price_level ? "1".repeat(place.price_level) : "",
+            "aggregateRating": place.rating ? {
+              "@type": "AggregateRating",
+              "ratingValue": place.rating,
+              "reviewCount": place.user_ratings_total || 0
+            } : undefined,
+            "amenityFeature": [
+              {
+                "@type": "LocationFeatureSpecification",
+                "name": "WiFi",
+                "value": true
+              },
+              {
+                "@type": "LocationFeatureSpecification", 
+                "name": "Power Outlets",
+                "value": true
+              },
+              {
+                "@type": "LocationFeatureSpecification",
+                "name": "Coffee",
+                "value": true
+              }
+            ],
+            "servesCuisine": "Coffee",
+            "hasMenu": false,
+            "acceptsReservations": false,
+            "wheelchairAccessible": true,
+            "parkingAvailable": true
+          })}
+        </script>
+      )}
     </Helmet>
   );
 };

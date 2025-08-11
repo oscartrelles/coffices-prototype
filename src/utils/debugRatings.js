@@ -4,7 +4,7 @@ import { db } from '../firebaseConfig';
 
 export const debugRatings = async () => {
   try {
-    console.log('🔍 Debugging ratings data structure...');
+  
     
     const ratingsRef = collection(db, 'ratings');
     const querySnapshot = await getDocs(ratingsRef);
